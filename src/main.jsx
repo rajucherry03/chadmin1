@@ -13,11 +13,4 @@ ReactDOM.createRoot(document.getElementById('root')).render(
   </React.StrictMode>
 );
 
-// Register PWA service worker only in production to avoid dev caching issues
-if (import.meta.env && import.meta.env.PROD) {
-  import('virtual:pwa-register').then(({ registerSW }) => {
-    registerSW({ immediate: true });
-  });
-}
-
 
