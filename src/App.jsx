@@ -20,7 +20,7 @@ const Relationships = lazy(() => import("./components/Relationships.jsx"));
 const FacultyAssignments = lazy(() => import("./components/FacultyAssignments.jsx"));
 const NoDues = lazy(() => import("./components/NoDues.jsx"));
 const NoDuesManagement = lazy(() => import("./components/NoDuesManagement.jsx"));
-const WeeklyTimetable = lazy(() => import("./components/WeeklyTimetable.js"));
+const WeeklyTimetable = lazy(() => import("./components/WeeklyTimetable.jsx"));
 const CreateTimetable = lazy(() => import("./components/CreateTImeTable.jsx"));
 const CreateUser = lazy(() => import("./components/CreateUser.jsx"));
 const Attendance = lazy(() => import("./components/Attendance.jsx"));
@@ -28,7 +28,7 @@ const CoordinatorAssignment = lazy(() => import("./components/CoordinatorAssignm
 const MentorAssignment = lazy(() => import("./components/MentorAssignment.jsx"));
 const ManageMentors = lazy(() => import("./components/ManageMentors.jsx"));
 const MakeAdmin = lazy(() => import("./components/MakeAdmin.jsx"));
-const UserList = lazy(() => import("./components/UserList.js"));
+const UserList = lazy(() => import("./components/UserList.jsx"));
 const NoduesCURD = lazy(() => import("./components/NoduesCURD.jsx"));
 
 // Private Route Wrapper
