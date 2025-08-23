@@ -12,8 +12,9 @@ export default defineConfig({
     viteCompression({ algorithm: 'gzip' }),
     VitePWA({
       registerType: 'autoUpdate',
-      devOptions: {
-        enabled: true,
+      workbox: {
+        globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+        globIgnores: ['**/node_modules/**/*', 'sw.js', 'workbox-*.js'],
       },
       manifest: {
         name: 'CampusHub360-Admin',
@@ -35,6 +36,7 @@ export default defineConfig({
         '.js': 'jsx',
       },
     },
+    include: ['workbox-window'],
   },
   build: {
     outDir: 'dist',
