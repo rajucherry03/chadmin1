@@ -22,13 +22,11 @@
     }
   ],
   "env": {
-    "NODE_ENV": "production",
-    "VITE_BUILD": "true"
+    "NODE_ENV": "production"
   },
   "build": {
     "env": {
-      "NODE_ENV": "production",
-      "VITE_BUILD": "true"
+      "NODE_ENV": "production"
     }
   }
 }
