@@ -1,6 +1,6 @@
 {
-  "name": "admin-college-management",
-  "version": "0.1.0",
+  "name": "campus-hub-360-admin",
+  "version": "1.0.0",
   "private": true,
   "dependencies": {
     "@fontsource/inter": "^5.2.6",
@@ -36,7 +36,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "echo 'No test runner configured with Vite yet' && exit 0"
+    "test": "echo 'No test runner configured with Vite yet' && exit 0",
+    "vercel-build": "vite build"
   },
   "engines": {
     "node": ">=18.0.0"
