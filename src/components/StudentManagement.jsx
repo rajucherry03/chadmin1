@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import "./StudentManagement.css";
 import {
@@ -13,7 +14,7 @@ import { db } from "../firebase";
 import { collection, doc, getDocs, updateDoc, deleteDoc, query, where, orderBy, limit, onSnapshot } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 import BulkImport from "./BulkImport";
-import EnhancedAddStudent from "./StudentManagement/EnhancedAddStudent";
+
 import EnhancedIDCardGenerator from "./StudentManagement/EnhancedIDCardGenerator";
 import FeeOverview from "./StudentManagement/FeeOverview";
 import GradesManagement from "./StudentManagement/GradesManagement";
@@ -25,12 +26,13 @@ import SystemSettings from "./SystemSettings";
 import ExportData from "./ExportData";
 
 const StudentManagement = () => {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState(() => localStorage.getItem("sm.activeTab") || "overview");
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [showBulkImport, setShowBulkImport] = useState(false);
-  const [showAddStudent, setShowAddStudent] = useState(false);
+
   const [showIDCardGenerator, setShowIDCardGenerator] = useState(false);
   const [searchTerm, setSearchTerm] = useState(() => localStorage.getItem("sm.searchTerm") || "");
   const [debouncedSearch, setDebouncedSearch] = useState(() => localStorage.getItem("sm.searchTerm") || "");
@@ -133,7 +135,7 @@ const StudentManagement = () => {
   const handleQuickAction = (action) => {
     switch (action) {
       case 'addStudent':
-        setShowAddStudent(true);
+        navigate('/student-registration');
         break;
       case 'bulkImport':
         setShowBulkImport(true);
@@ -671,7 +673,7 @@ const StudentManagement = () => {
           </div>
           <div className="flex flex-col sm:flex-row gap-2">
             <button
-              onClick={() => setShowAddStudent(true)}
+              onClick={() => navigate('/student-registration')}
               className="bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white px-3 py-2 rounded-lg flex items-center justify-center space-x-2 text-xs font-medium transition-all duration-200 border border-white/30"
             >
               <FontAwesomeIcon icon={faPlus} />
@@ -832,7 +834,7 @@ const StudentManagement = () => {
 
       {/* Mobile FAB for Add Student */}
       <button
-        onClick={() => setShowAddStudent(true)}
+        onClick={() => navigate('/student-registration')}
         className="lg:hidden fixed bottom-4 right-4 z-50 bg-blue-600 hover:bg-blue-700 text-white rounded-full w-12 h-12 shadow-lg flex items-center justify-center transition-transform hover:scale-110"
         aria-label="Add Student"
       >
@@ -859,24 +861,7 @@ const StudentManagement = () => {
         </div>
       )}
 
-      {showAddStudent && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto student-modal">
-            <div className="p-4 sm:p-6 student-modal-content">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">Add New Student</h3>
-                <button
-                  onClick={() => setShowAddStudent(false)}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  <FontAwesomeIcon icon={faTimes} />
-                </button>
-              </div>
-              <EnhancedAddStudent onClose={() => setShowAddStudent(false)} />
-            </div>
-          </div>
-        </div>
-      )}
+
 
       {showIDCardGenerator && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">

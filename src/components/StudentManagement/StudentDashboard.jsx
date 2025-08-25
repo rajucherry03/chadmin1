@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faUserGraduate,
@@ -33,6 +34,7 @@ import GradesManagement from "./GradesManagement";
 import BulkImport from "../BulkImport";
 
 const StudentDashboard = () => {
+  const navigate = useNavigate();
   const [stats, setStats] = useState({
     total: 0,
     active: 0,
@@ -141,9 +143,9 @@ const StudentDashboard = () => {
 
   const handleQuickAction = (action) => {
     switch (action) {
-      case "add-student":
-        window.location.href = "/addstudent";
-        break;
+              case "add-student":
+          window.location.href = "/student-registration";
+          break;
       case "bulk-import":
         setShowBulkImport(true);
         break;
@@ -216,7 +218,10 @@ const StudentDashboard = () => {
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:space-x-3 mt-2 lg:mt-0 w-full sm:w-auto">
-              <button className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg flex items-center justify-center space-x-2 transition-colors w-full sm:w-auto">
+              <button 
+                onClick={() => navigate('/student-registration')}
+                className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg flex items-center justify-center space-x-2 transition-colors w-full sm:w-auto"
+              >
                 <FontAwesomeIcon icon={faPlus} />
                 <span>Add Student</span>
               </button>

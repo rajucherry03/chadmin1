@@ -113,7 +113,7 @@ const QuickActions = ({ onActionClick }) => {
       // Fallback actions if no callback provided
       switch (action) {
         case "add-student":
-          window.location.href = "/addstudent";
+          window.location.href = "/student-registration";
           break;
         case "bulk-import":
           alert("Bulk import functionality coming soon!");

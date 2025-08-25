@@ -11,7 +11,6 @@ const AdminDashboard = lazy(() => import("./components/AdminDashboard.jsx"));
 const Login = lazy(() => import("./components/Login.jsx"))
 const Students = lazy(() => import("./components/StudentManagement/StudentDashboard.jsx"));
 const StudentManagement = lazy(() => import("./components/StudentManagement.jsx"));
-const AddStudent = lazy(() => import("./components/AddStudent.jsx"));
 const StudentRegistration = lazy(() => import("./components/StudentRegistration.jsx"));
 const FormCustomizer = lazy(() => import("./components/FormCustomizer.jsx"));
 const Faculty = lazy(() => import("./components/Faculty-manage.jsx"));
@@ -95,7 +94,6 @@ function App() {
                             <Route path="/dashboard" element={<AdminDashboard />} />
                             <Route path="/home" element={<Students />} />
                             <Route path="/student-management" element={<StudentManagement />} />
-                            <Route path="/addstudent" element={<AddStudent />} />
                             <Route path="/student-registration" element={<StudentRegistration />} />
                             <Route path="/form-customizer" element={<FormCustomizer />} />
                             <Route path="/faculty" element={<FacultyManagement />} />
