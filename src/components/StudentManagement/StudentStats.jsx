@@ -7,7 +7,7 @@ import {
   faGraduationCap,
   faMoneyBillWave,
   faClock,
-  faBed,
+  faHome,
   faBus,
   faBuilding,
   faChartLine
@@ -72,7 +72,7 @@ const StudentStats = ({ stats }) => {
     {
       title: "Hostel Required",
       value: stats.byHostel?.Required || 0,
-      icon: faBed,
+      icon: faHome,
       color: "indigo",
       bgColor: "bg-indigo-50",
       borderColor: "border-indigo-200",
@@ -105,16 +105,16 @@ const StudentStats = ({ stats }) => {
   return (
     <div className="space-y-6">
       {/* Main Statistics Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
         {statCards.slice(0, 4).map((stat, index) => (
           <div
             key={index}
-            className={`${stat.bgColor} ${stat.borderColor} border rounded-xl p-4 hover:shadow-lg transition-shadow`}
+            className={`${stat.bgColor} ${stat.borderColor} border rounded-xl p-3 sm:p-4 hover:shadow-lg transition-shadow`}
           >
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">{stat.title}</p>
-                <p className={`text-2xl font-bold ${stat.textColor}`}>{stat.value}</p>
+                <p className="text-xs sm:text-sm font-medium text-gray-600">{stat.title}</p>
+                <p className={`text-xl sm:text-2xl font-bold ${stat.textColor}`}>{stat.value}</p>
               </div>
               <div className={`p-3 rounded-full bg-white shadow-sm`}>
                 <FontAwesomeIcon icon={stat.icon} className={`text-xl ${getIconColor(stat.color)}`} />
@@ -125,16 +125,16 @@ const StudentStats = ({ stats }) => {
       </div>
 
       {/* Additional Statistics */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
         {statCards.slice(4).map((stat, index) => (
           <div
             key={index}
-            className={`${stat.bgColor} ${stat.borderColor} border rounded-xl p-4 hover:shadow-lg transition-shadow`}
+            className={`${stat.bgColor} ${stat.borderColor} border rounded-xl p-3 sm:p-4 hover:shadow-lg transition-shadow`}
           >
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">{stat.title}</p>
-                <p className={`text-xl font-bold ${stat.textColor}`}>{stat.value}</p>
+                <p className="text-xs sm:text-sm font-medium text-gray-600">{stat.title}</p>
+                <p className={`text-lg sm:text-xl font-bold ${stat.textColor}`}>{stat.value}</p>
               </div>
               <div className={`p-2 rounded-full bg-white shadow-sm`}>
                 <FontAwesomeIcon icon={stat.icon} className={`text-lg ${getIconColor(stat.color)}`} />
@@ -151,12 +151,12 @@ const StudentStats = ({ stats }) => {
             <FontAwesomeIcon icon={faChartLine} className="text-blue-500 mr-2" />
             Year-wise Distribution
           </h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
             {Object.entries(stats.byYear).map(([year, count]) => (
               <div key={year} className="bg-white rounded-lg p-4 shadow-sm">
                 <div className="text-center">
-                  <p className="text-2xl font-bold text-blue-600">{count}</p>
-                  <p className="text-sm text-gray-600">{year} Year</p>
+                  <p className="text-xl sm:text-2xl font-bold text-blue-600">{count}</p>
+                  <p className="text-xs sm:text-sm text-gray-600">{year} Year</p>
                 </div>
               </div>
             ))}
@@ -171,16 +171,16 @@ const StudentStats = ({ stats }) => {
             <FontAwesomeIcon icon={faBuilding} className="text-green-500 mr-2" />
             Department-wise Distribution
           </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
             {Object.entries(stats.byDepartment).map(([dept, count]) => (
               <div key={dept} className="bg-white rounded-lg p-4 shadow-sm">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="font-medium text-gray-800">{dept}</p>
-                    <p className="text-sm text-gray-600">{count} students</p>
+                    <p className="font-medium text-gray-800 text-sm sm:text-base">{dept}</p>
+                    <p className="text-xs sm:text-sm text-gray-600">{count} students</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-lg font-bold text-green-600">{count}</p>
+                    <p className="text-base sm:text-lg font-bold text-green-600">{count}</p>
                   </div>
                 </div>
               </div>

@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
-  faBed,
+  faHome,
   faUsers,
   faBuilding,
   faCheckCircle,
@@ -114,7 +114,7 @@ const HostelOverview = ({ stats }) => {
               </p>
             </div>
             <div className="p-3 rounded-full bg-white shadow-sm">
-              <FontAwesomeIcon icon={faBed} className="text-2xl text-green-500" />
+              <FontAwesomeIcon icon={faHome} className="text-2xl text-green-500" />
             </div>
           </div>
         </div>

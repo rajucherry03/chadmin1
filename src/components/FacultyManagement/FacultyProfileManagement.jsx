@@ -1,0 +1,1186 @@
+import React, { useState, useEffect } from "react";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import {
+  faUser,
+  faEnvelope,
+  faPhone,
+  faMapMarkerAlt,
+  faIdCard,
+  faGraduationCap,
+  faBriefcase,
+  faUniversity,
+  faCalendarAlt,
+  faBook,
+  faFileAlt,
+  faUpload,
+  faEdit,
+  faTrash,
+  faPlus,
+  faSave,
+  faTimes,
+  faEye,
+  faDownload,
+  faCheckCircle,
+  faExclamationTriangle,
+  faClock,
+  faUsers,
+  faChalkboardTeacher,
+
+
+
+  faAward,
+
+  faBuilding,
+  faMoneyBillWave,
+  faCreditCard,
+  faShieldAlt,
+  faHistory,
+  faStar,
+  faCalendarCheck,
+  faUserTie,
+  faUserGraduate,
+  faUserCog,
+  faUserShield,
+  faUserCheck,
+  faUserTimes,
+  faUserClock,
+  faUserPlus,
+  faUserEdit,
+  faUserMinus,
+  faUserLock,
+  faUserSecret,
+  faUserTag,
+  faUserSlash,
+  faSearch,
+  faFilter,
+  faSort,
+  faEllipsisV,
+  faList
+} from "@fortawesome/free-solid-svg-icons";
+import { db } from "../../firebase";
+import {
+  collection,
+  getDocs,
+  query,
+  where,
+  orderBy,
+  onSnapshot,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  doc,
+  serverTimestamp
+} from "firebase/firestore";
+
+const FacultyProfileManagement = () => {
+  const [faculty, setFaculty] = useState([]);
+  const [selectedFaculty, setSelectedFaculty] = useState(null);
+  const [showModal, setShowModal] = useState(false);
+  const [activeSection, setActiveSection] = useState("personal");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterDepartment, setFilterDepartment] = useState("");
+  const [filterDesignation, setFilterDesignation] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [viewMode, setViewMode] = useState("grid"); // grid or list
+
+  // Form states for different sections
+  const [personalDetails, setPersonalDetails] = useState({
+    name: "",
+    employeeId: "",
+    dateOfBirth: "",
+    gender: "",
+    email: "",
+    phone: "",
+    address: "",
+    emergencyContact: "",
+    bloodGroup: "",
+    maritalStatus: ""
+  });
+
+  const [academicQualifications, setAcademicQualifications] = useState({
+    highestQualification: "",
+    specialization: "",
+    university: "",
+    yearOfCompletion: "",
+    percentage: "",
+    certifications: [],
+    researchAreas: []
+  });
+
+  const [employmentDetails, setEmploymentDetails] = useState({
+    department: "",
+    designation: "",
+    joiningDate: "",
+    confirmationDate: "",
+    status: "Active",
+    reportingTo: "",
+    workLocation: "",
+    employeeType: "Regular"
+  });
+
+  const [teachingLoad, setTeachingLoad] = useState({
+    assignedCourses: [],
+    weeklyHours: 0,
+    labSessions: 0,
+    tutorialSessions: 0,
+    projectGuidance: 0,
+    totalWorkload: 0
+  });
+
+  const [experienceRecord, setExperienceRecord] = useState({
+    previousInstitutions: [],
+    industryExperience: [],
+    totalExperience: 0,
+    researchExperience: 0,
+    administrativeExperience: 0
+  });
+
+  const [documents, setDocuments] = useState({
+    photo: null,
+    idProof: null,
+    panCard: null,
+    aadhaarCard: null,
+    educationalCertificates: [],
+    experienceCertificates: [],
+    relievingLetters: [],
+    otherDocuments: []
+  });
+
+  const [bankDetails, setBankDetails] = useState({
+    bankName: "",
+    accountNumber: "",
+    ifscCode: "",
+    branchName: "",
+    accountType: "",
+    panNumber: "",
+    pfNumber: "",
+    esiNumber: "",
+    uanNumber: "",
+    taxDeclarations: []
+  });
+
+  useEffect(() => {
+    const unsubscribe = onSnapshot(
+      collection(db, "faculty"),
+      (snapshot) => {
+        const facultyData = [];
+        snapshot.forEach((doc) => {
+          facultyData.push({ id: doc.id, ...doc.data() });
+        });
+        setFaculty(facultyData);
+        setLoading(false);
+      }
+    );
+
+    return () => unsubscribe();
+  }, []);
+
+  const handleAddFaculty = () => {
+    setSelectedFaculty(null);
+    setShowModal(true);
+    setActiveSection("personal");
+  };
+
+  const handleEditFaculty = (facultyMember) => {
+    setSelectedFaculty(facultyMember);
+    setPersonalDetails(facultyMember.personalDetails || {});
+    setAcademicQualifications(facultyMember.academicQualifications || {});
+    setEmploymentDetails(facultyMember.employmentDetails || {});
+    setTeachingLoad(facultyMember.teachingLoad || {});
+    setExperienceRecord(facultyMember.experienceRecord || {});
+    setDocuments(facultyMember.documents || {});
+    setBankDetails(facultyMember.bankDetails || {});
+    setShowModal(true);
+  };
+
+  const handleSaveFaculty = async () => {
+    try {
+      const facultyData = {
+        personalDetails,
+        academicQualifications,
+        employmentDetails,
+        teachingLoad,
+        experienceRecord,
+        documents,
+        bankDetails,
+        updatedAt: serverTimestamp()
+      };
+
+      if (selectedFaculty) {
+        await updateDoc(doc(db, "faculty", selectedFaculty.id), facultyData);
+      } else {
+        facultyData.createdAt = serverTimestamp();
+        await addDoc(collection(db, "faculty"), facultyData);
+      }
+
+      setShowModal(false);
+      setSelectedFaculty(null);
+      // Reset form states
+    } catch (error) {
+      console.error("Error saving faculty:", error);
+    }
+  };
+
+  const filteredFaculty = faculty.filter((member) => {
+    const matchesSearch = member.personalDetails?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         member.employmentDetails?.employeeId?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesDepartment = !filterDepartment || member.employmentDetails?.department === filterDepartment;
+    const matchesDesignation = !filterDesignation || member.employmentDetails?.designation === filterDesignation;
+    
+    return matchesSearch && matchesDepartment && matchesDesignation;
+  });
+
+  const sections = [
+    { id: "personal", name: "Personal Details", icon: faUser, color: "blue" },
+    { id: "academic", name: "Academic Qualifications", icon: faGraduationCap, color: "green" },
+    { id: "employment", name: "Employment Details", icon: faBriefcase, color: "purple" },
+    { id: "teaching", name: "Teaching Load", icon: faChalkboardTeacher, color: "orange" },
+    { id: "experience", name: "Experience Record", icon: faHistory, color: "red" },
+    { id: "documents", name: "Documents", icon: faFileAlt, color: "indigo" },
+    { id: "bank", name: "Bank & Payroll", icon: faMoneyBillWave, color: "teal" }
+  ];
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case "Active": return "bg-green-100 text-green-800 border-green-200";
+      case "On Leave": return "bg-yellow-100 text-yellow-800 border-yellow-200";
+      case "Probation": return "bg-orange-100 text-orange-800 border-orange-200";
+      default: return "bg-red-100 text-red-800 border-red-200";
+    }
+  };
+
+  const renderSectionContent = () => {
+    switch (activeSection) {
+      case "personal":
+        return (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Full Name *</label>
+                <input
+                  type="text"
+                  value={personalDetails.name}
+                  onChange={(e) => setPersonalDetails({...personalDetails, name: e.target.value})}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                  placeholder="Enter full name"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Employee ID *</label>
+                <input
+                  type="text"
+                  value={personalDetails.employeeId}
+                  onChange={(e) => setPersonalDetails({...personalDetails, employeeId: e.target.value})}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                  placeholder="Enter employee ID"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Email *</label>
+                <input
+                  type="email"
+                  value={personalDetails.email}
+                  onChange={(e) => setPersonalDetails({...personalDetails, email: e.target.value})}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                  placeholder="Enter email address"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Phone *</label>
+                <input
+                  type="tel"
+                  value={personalDetails.phone}
+                  onChange={(e) => setPersonalDetails({...personalDetails, phone: e.target.value})}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                  placeholder="Enter phone number"
+                />
+              </div>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Date of Birth</label>
+                <input
+                  type="date"
+                  value={personalDetails.dateOfBirth}
+                  onChange={(e) => setPersonalDetails({...personalDetails, dateOfBirth: e.target.value})}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Gender</label>
+                <select
+                  value={personalDetails.gender}
+                  onChange={(e) => setPersonalDetails({...personalDetails, gender: e.target.value})}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                >
+                  <option value="">Select Gender</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Blood Group</label>
+                <select
+                  value={personalDetails.bloodGroup}
+                  onChange={(e) => setPersonalDetails({...personalDetails, bloodGroup: e.target.value})}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                >
+                  <option value="">Select Blood Group</option>
+                  <option value="A+">A+</option>
+                  <option value="A-">A-</option>
+                  <option value="B+">B+</option>
+                  <option value="B-">B-</option>
+                  <option value="AB+">AB+</option>
+                  <option value="AB-">AB-</option>
+                  <option value="O+">O+</option>
+                  <option value="O-">O-</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Marital Status</label>
+                <select
+                  value={personalDetails.maritalStatus}
+                  onChange={(e) => setPersonalDetails({...personalDetails, maritalStatus: e.target.value})}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                >
+                  <option value="">Select Status</option>
+                  <option value="Single">Single</option>
+                  <option value="Married">Married</option>
+                  <option value="Divorced">Divorced</option>
+                  <option value="Widowed">Widowed</option>
+                </select>
+              </div>
+            </div>
+            <div className="md:col-span-2">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Address</label>
+              <textarea
+                value={personalDetails.address}
+                onChange={(e) => setPersonalDetails({...personalDetails, address: e.target.value})}
+                rows={3}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                placeholder="Enter complete address"
+              />
+            </div>
+          </div>
+        );
+      case "academic":
+        return (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Highest Qualification</label>
+              <select
+                value={academicQualifications.highestQualification}
+                onChange={(e) => setAcademicQualifications({...academicQualifications, highestQualification: e.target.value})}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+              >
+                <option value="">Select Qualification</option>
+                <option value="Ph.D">Ph.D</option>
+                <option value="M.Tech">M.Tech</option>
+                <option value="M.E">M.E</option>
+                <option value="M.Sc">M.Sc</option>
+                <option value="M.A">M.A</option>
+                <option value="B.Tech">B.Tech</option>
+                <option value="B.E">B.E</option>
+                <option value="B.Sc">B.Sc</option>
+                <option value="B.A">B.A</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Specialization</label>
+              <input
+                type="text"
+                value={academicQualifications.specialization}
+                onChange={(e) => setAcademicQualifications({...academicQualifications, specialization: e.target.value})}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">University</label>
+              <input
+                type="text"
+                value={academicQualifications.university}
+                onChange={(e) => setAcademicQualifications({...academicQualifications, university: e.target.value})}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Year of Completion</label>
+              <input
+                type="number"
+                value={academicQualifications.yearOfCompletion}
+                onChange={(e) => setAcademicQualifications({...academicQualifications, yearOfCompletion: e.target.value})}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Percentage/CGPA</label>
+              <input
+                type="text"
+                value={academicQualifications.percentage}
+                onChange={(e) => setAcademicQualifications({...academicQualifications, percentage: e.target.value})}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+              />
+            </div>
+            <div className="md:col-span-2">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Research Areas</label>
+              <textarea
+                value={academicQualifications.researchAreas.join(", ")}
+                onChange={(e) => setAcademicQualifications({...academicQualifications, researchAreas: e.target.value.split(", ")})}
+                rows={3}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                placeholder="Enter research areas separated by commas"
+              />
+            </div>
+          </div>
+        );
+      case "employment":
+        return (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Department</label>
+              <select
+                value={employmentDetails.department}
+                onChange={(e) => setEmploymentDetails({...employmentDetails, department: e.target.value})}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+              >
+                <option value="">Select Department</option>
+                <option value="Computer Science">Computer Science</option>
+                <option value="Electronics">Electronics</option>
+                <option value="Information Technology">Information Technology</option>
+                <option value="Data Science">Data Science</option>
+                <option value="Mechanical">Mechanical</option>
+                <option value="Civil">Civil</option>
+                <option value="Electrical">Electrical</option>
+                <option value="Chemical">Chemical</option>
+                <option value="Mathematics">Mathematics</option>
+                <option value="Physics">Physics</option>
+                <option value="Chemistry">Chemistry</option>
+                <option value="English">English</option>
+                <option value="Management">Management</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Designation</label>
+              <select
+                value={employmentDetails.designation}
+                onChange={(e) => setEmploymentDetails({...employmentDetails, designation: e.target.value})}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+              >
+                <option value="">Select Designation</option>
+                <option value="Professor">Professor</option>
+                <option value="Associate Professor">Associate Professor</option>
+                <option value="Assistant Professor">Assistant Professor</option>
+                <option value="Lecturer">Lecturer</option>
+                <option value="Senior Lecturer">Senior Lecturer</option>
+                <option value="Research Scholar">Research Scholar</option>
+                <option value="Visiting Faculty">Visiting Faculty</option>
+                <option value="Adjunct Faculty">Adjunct Faculty</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Joining Date</label>
+              <input
+                type="date"
+                value={employmentDetails.joiningDate}
+                onChange={(e) => setEmploymentDetails({...employmentDetails, joiningDate: e.target.value})}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Status</label>
+              <select
+                value={employmentDetails.status}
+                onChange={(e) => setEmploymentDetails({...employmentDetails, status: e.target.value})}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+              >
+                <option value="Active">Active</option>
+                <option value="On Leave">On Leave</option>
+                <option value="Probation">Probation</option>
+                <option value="Terminated">Terminated</option>
+                <option value="Retired">Retired</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Employee Type</label>
+              <select
+                value={employmentDetails.employeeType}
+                onChange={(e) => setEmploymentDetails({...employmentDetails, employeeType: e.target.value})}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+              >
+                <option value="Regular">Regular</option>
+                <option value="Contract">Contract</option>
+                <option value="Visiting">Visiting</option>
+                <option value="Adjunct">Adjunct</option>
+                <option value="Part-time">Part-time</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Work Location</label>
+              <input
+                type="text"
+                value={employmentDetails.workLocation}
+                onChange={(e) => setEmploymentDetails({...employmentDetails, workLocation: e.target.value})}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+              />
+            </div>
+          </div>
+        );
+      case "teaching":
+        return (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Assigned Courses</label>
+              <textarea
+                value={teachingLoad.assignedCourses.join(", ")}
+                onChange={(e) => setTeachingLoad({...teachingLoad, assignedCourses: e.target.value.split(", ")})}
+                rows={3}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                placeholder="Enter assigned courses separated by commas"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Weekly Hours</label>
+              <input
+                type="number"
+                value={teachingLoad.weeklyHours}
+                onChange={(e) => setTeachingLoad({...teachingLoad, weeklyHours: parseInt(e.target.value) || 0})}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Lab Sessions</label>
+              <input
+                type="number"
+                value={teachingLoad.labSessions}
+                onChange={(e) => setTeachingLoad({...teachingLoad, labSessions: parseInt(e.target.value) || 0})}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Tutorial Sessions</label>
+              <input
+                type="number"
+                value={teachingLoad.tutorialSessions}
+                onChange={(e) => setTeachingLoad({...teachingLoad, tutorialSessions: parseInt(e.target.value) || 0})}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Project Guidance</label>
+              <input
+                type="number"
+                value={teachingLoad.projectGuidance}
+                onChange={(e) => setTeachingLoad({...teachingLoad, projectGuidance: parseInt(e.target.value) || 0})}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Total Workload</label>
+              <input
+                type="number"
+                value={teachingLoad.totalWorkload}
+                onChange={(e) => setTeachingLoad({...teachingLoad, totalWorkload: parseInt(e.target.value) || 0})}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+              />
+            </div>
+          </div>
+        );
+      case "experience":
+        return (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Previous Institutions</label>
+              <textarea
+                value={experienceRecord.previousInstitutions.join(", ")}
+                onChange={(e) => setExperienceRecord({...experienceRecord, previousInstitutions: e.target.value.split(", ")})}
+                rows={3}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                placeholder="Enter previous institutions separated by commas"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Industry Experience</label>
+              <textarea
+                value={experienceRecord.industryExperience.join(", ")}
+                onChange={(e) => setExperienceRecord({...experienceRecord, industryExperience: e.target.value.split(", ")})}
+                rows={3}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                placeholder="Enter industry experience separated by commas"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Total Experience (Years)</label>
+              <input
+                type="number"
+                value={experienceRecord.totalExperience}
+                onChange={(e) => setExperienceRecord({...experienceRecord, totalExperience: parseInt(e.target.value) || 0})}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Research Experience (Years)</label>
+              <input
+                type="number"
+                value={experienceRecord.researchExperience}
+                onChange={(e) => setExperienceRecord({...experienceRecord, researchExperience: parseInt(e.target.value) || 0})}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Administrative Experience (Years)</label>
+              <input
+                type="number"
+                value={experienceRecord.administrativeExperience}
+                onChange={(e) => setExperienceRecord({...experienceRecord, administrativeExperience: parseInt(e.target.value) || 0})}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+              />
+            </div>
+          </div>
+        );
+      case "documents":
+        return (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Photo</label>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => setDocuments({...documents, photo: e.target.files[0]})}
+                className="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 focus:outline-none file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+              />
+              {documents.photo && (
+                <p className="mt-2 text-sm text-gray-500">Selected file: {documents.photo.name}</p>
+              )}
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">ID Proof</label>
+              <input
+                type="file"
+                accept=".pdf,.doc,.docx"
+                onChange={(e) => setDocuments({...documents, idProof: e.target.files[0]})}
+                className="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 focus:outline-none file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+              />
+              {documents.idProof && (
+                <p className="mt-2 text-sm text-gray-500">Selected file: {documents.idProof.name}</p>
+              )}
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">PAN Card</label>
+              <input
+                type="file"
+                accept=".pdf,.doc,.docx"
+                onChange={(e) => setDocuments({...documents, panCard: e.target.files[0]})}
+                className="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 focus:outline-none file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+              />
+              {documents.panCard && (
+                <p className="mt-2 text-sm text-gray-500">Selected file: {documents.panCard.name}</p>
+              )}
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Aadhaar Card</label>
+              <input
+                type="file"
+                accept=".pdf,.doc,.docx"
+                onChange={(e) => setDocuments({...documents, aadhaarCard: e.target.files[0]})}
+                className="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 focus:outline-none file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+              />
+              {documents.aadhaarCard && (
+                <p className="mt-2 text-sm text-gray-500">Selected file: {documents.aadhaarCard.name}</p>
+              )}
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Educational Certificates</label>
+              <input
+                type="file"
+                accept=".pdf,.doc,.docx"
+                multiple
+                onChange={(e) => setDocuments({...documents, educationalCertificates: [...documents.educationalCertificates, ...e.target.files]})}
+                className="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 focus:outline-none file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+              />
+              <p className="mt-2 text-sm text-gray-500">
+                Selected files: {documents.educationalCertificates.map(f => f.name).join(", ")}
+              </p>
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Experience Certificates</label>
+              <input
+                type="file"
+                accept=".pdf,.doc,.docx"
+                multiple
+                onChange={(e) => setDocuments({...documents, experienceCertificates: [...documents.experienceCertificates, ...e.target.files]})}
+                className="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 focus:outline-none file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+              />
+              <p className="mt-2 text-sm text-gray-500">
+                Selected files: {documents.experienceCertificates.map(f => f.name).join(", ")}
+              </p>
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Relieving Letters</label>
+              <input
+                type="file"
+                accept=".pdf,.doc,.docx"
+                multiple
+                onChange={(e) => setDocuments({...documents, relievingLetters: [...documents.relievingLetters, ...e.target.files]})}
+                className="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 focus:outline-none file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+              />
+              <p className="mt-2 text-sm text-gray-500">
+                Selected files: {documents.relievingLetters.map(f => f.name).join(", ")}
+              </p>
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Other Documents</label>
+              <input
+                type="file"
+                accept=".pdf,.doc,.docx"
+                multiple
+                onChange={(e) => setDocuments({...documents, otherDocuments: [...documents.otherDocuments, ...e.target.files]})}
+                className="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 focus:outline-none file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+              />
+              <p className="mt-2 text-sm text-gray-500">
+                Selected files: {documents.otherDocuments.map(f => f.name).join(", ")}
+              </p>
+            </div>
+          </div>
+        );
+      case "bank":
+        return (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Bank Name</label>
+              <input
+                type="text"
+                value={bankDetails.bankName}
+                onChange={(e) => setBankDetails({...bankDetails, bankName: e.target.value})}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Account Number</label>
+              <input
+                type="text"
+                value={bankDetails.accountNumber}
+                onChange={(e) => setBankDetails({...bankDetails, accountNumber: e.target.value})}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">IFSC Code</label>
+              <input
+                type="text"
+                value={bankDetails.ifscCode}
+                onChange={(e) => setBankDetails({...bankDetails, ifscCode: e.target.value})}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Branch Name</label>
+              <input
+                type="text"
+                value={bankDetails.branchName}
+                onChange={(e) => setBankDetails({...bankDetails, branchName: e.target.value})}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Account Type</label>
+              <select
+                value={bankDetails.accountType}
+                onChange={(e) => setBankDetails({...bankDetails, accountType: e.target.value})}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+              >
+                <option value="">Select Account Type</option>
+                <option value="Savings">Savings</option>
+                <option value="Current">Current</option>
+                <option value="Fixed Deposit">Fixed Deposit</option>
+                <option value="Recurring Deposit">Recurring Deposit</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">PAN Number</label>
+              <input
+                type="text"
+                value={bankDetails.panNumber}
+                onChange={(e) => setBankDetails({...bankDetails, panNumber: e.target.value})}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">PF Number</label>
+              <input
+                type="text"
+                value={bankDetails.pfNumber}
+                onChange={(e) => setBankDetails({...bankDetails, pfNumber: e.target.value})}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">ESI Number</label>
+              <input
+                type="text"
+                value={bankDetails.esiNumber}
+                onChange={(e) => setBankDetails({...bankDetails, esiNumber: e.target.value})}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">UAN Number</label>
+              <input
+                type="text"
+                value={bankDetails.uanNumber}
+                onChange={(e) => setBankDetails({...bankDetails, uanNumber: e.target.value})}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Tax Declarations</label>
+              <input
+                type="file"
+                accept=".pdf,.doc,.docx"
+                multiple
+                onChange={(e) => setBankDetails({...bankDetails, taxDeclarations: [...bankDetails.taxDeclarations, ...e.target.files]})}
+                className="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 focus:outline-none file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+              />
+              <p className="mt-2 text-sm text-gray-500">
+                Selected files: {bankDetails.taxDeclarations.map(f => f.name).join(", ")}
+              </p>
+            </div>
+          </div>
+        );
+      default:
+        return (
+          <div className="text-center py-8">
+            <FontAwesomeIcon icon={faUser} className="text-4xl text-gray-400 mb-4" />
+            <p className="text-gray-600">Section content will be implemented here</p>
+          </div>
+        );
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-600 border-t-transparent mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading faculty profiles...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header with Actions */}
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">Faculty Profiles</h2>
+          <p className="text-gray-600 mt-1">Manage and organize faculty information</p>
+        </div>
+        <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-3">
+          <button
+            onClick={() => setViewMode(viewMode === "grid" ? "list" : "grid")}
+            className="px-4 py-2 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-colors flex items-center justify-center space-x-2"
+          >
+            <FontAwesomeIcon icon={viewMode === "grid" ? faUsers : faList} />
+            <span>{viewMode === "grid" ? "List View" : "Grid View"}</span>
+          </button>
+          <button
+            onClick={handleAddFaculty}
+            className="px-6 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 flex items-center justify-center space-x-2"
+          >
+            <FontAwesomeIcon icon={faPlus} />
+            <span>Add Faculty</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Search and Filters */}
+      <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="md:col-span-2">
+            <div className="relative">
+              <FontAwesomeIcon icon={faSearch} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search by name or employee ID..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+              />
+            </div>
+          </div>
+          <div>
+            <select
+              value={filterDepartment}
+              onChange={(e) => setFilterDepartment(e.target.value)}
+              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+            >
+              <option value="">All Departments</option>
+              <option value="Computer Science">Computer Science</option>
+              <option value="Mathematics">Mathematics</option>
+              <option value="Physics">Physics</option>
+              <option value="Chemistry">Chemistry</option>
+              <option value="Biology">Biology</option>
+            </select>
+          </div>
+          <div>
+            <select
+              value={filterDesignation}
+              onChange={(e) => setFilterDesignation(e.target.value)}
+              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+            >
+              <option value="">All Designations</option>
+              <option value="Professor">Professor</option>
+              <option value="Associate Professor">Associate Professor</option>
+              <option value="Assistant Professor">Assistant Professor</option>
+              <option value="Lecturer">Lecturer</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* Faculty Cards/List */}
+      {viewMode === "grid" ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {filteredFaculty.map((member) => (
+            <div key={member.id} className="bg-white rounded-2xl shadow-lg border border-gray-100 hover:shadow-xl transition-all duration-300 overflow-hidden">
+              <div className="p-6">
+                <div className="flex items-center space-x-4 mb-4">
+                  <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center text-white font-bold text-lg">
+                    {member.personalDetails?.name?.charAt(0) || "F"}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-lg font-bold text-gray-900 truncate">
+                      {member.personalDetails?.name || "Unknown Name"}
+                    </h3>
+                    <p className="text-sm text-gray-600 truncate">
+                      {member.employmentDetails?.employeeId || "No ID"}
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="space-y-3 mb-4">
+                  <div className="flex items-center space-x-2 text-sm text-gray-600">
+                    <FontAwesomeIcon icon={faUniversity} className="w-4" />
+                    <span className="truncate">{member.employmentDetails?.department || "No Department"}</span>
+                  </div>
+                  <div className="flex items-center space-x-2 text-sm text-gray-600">
+                    <FontAwesomeIcon icon={faUserTie} className="w-4" />
+                    <span className="truncate">{member.employmentDetails?.designation || "No Designation"}</span>
+                  </div>
+                  <div className="flex items-center space-x-2 text-sm text-gray-600">
+                    <FontAwesomeIcon icon={faEnvelope} className="w-4" />
+                    <span className="truncate">{member.personalDetails?.email || "No Email"}</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between mb-4">
+                  <span className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full border ${getStatusColor(member.employmentDetails?.status)}`}>
+                    {member.employmentDetails?.status || "Unknown"}
+                  </span>
+                  <div className="flex space-x-2">
+                    <button
+                      onClick={() => handleEditFaculty(member)}
+                      className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                      title="Edit"
+                    >
+                      <FontAwesomeIcon icon={faEdit} />
+                    </button>
+                    <button
+                      className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                      title="View"
+                    >
+                      <FontAwesomeIcon icon={faEye} />
+                    </button>
+                    <button
+                      className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      title="Delete"
+                    >
+                      <FontAwesomeIcon icon={faTrash} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Faculty Member
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Department
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Designation
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Contact
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {filteredFaculty.map((member) => (
+                  <tr key={member.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center text-white font-bold text-sm mr-3">
+                          {member.personalDetails?.name?.charAt(0) || "F"}
+                        </div>
+                        <div>
+                          <div className="text-sm font-semibold text-gray-900">
+                            {member.personalDetails?.name || "Unknown Name"}
+                          </div>
+                          <div className="text-sm text-gray-500">
+                            {member.employmentDetails?.employeeId || "No ID"}
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {member.employmentDetails?.department || "N/A"}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {member.employmentDetails?.designation || "N/A"}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full border ${getStatusColor(member.employmentDetails?.status)}`}>
+                        {member.employmentDetails?.status || "N/A"}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <div>
+                        <div className="font-medium">{member.personalDetails?.email || "N/A"}</div>
+                        <div className="text-gray-500">{member.personalDetails?.phone || "N/A"}</div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() => handleEditFaculty(member)}
+                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          title="Edit"
+                        >
+                          <FontAwesomeIcon icon={faEdit} />
+                        </button>
+                        <button
+                          className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                          title="View"
+                        >
+                          <FontAwesomeIcon icon={faEye} />
+                        </button>
+                        <button
+                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Delete"
+                        >
+                          <FontAwesomeIcon icon={faTrash} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Empty State */}
+      {filteredFaculty.length === 0 && (
+        <div className="text-center py-12 bg-white rounded-2xl shadow-lg border border-gray-100">
+          <FontAwesomeIcon icon={faUsers} className="text-6xl text-gray-300 mb-4" />
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">No faculty members found</h3>
+          <p className="text-gray-600 mb-6">Try adjusting your search or filters to find what you're looking for.</p>
+          <button
+            onClick={handleAddFaculty}
+            className="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 flex items-center justify-center space-x-2 mx-auto"
+          >
+            <FontAwesomeIcon icon={faPlus} />
+            <span>Add First Faculty</span>
+          </button>
+        </div>
+      )}
+
+      {/* Modal for Add/Edit Faculty */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center p-4">
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden">
+            {/* Modal Header */}
+            <div className="flex justify-between items-center p-6 border-b border-gray-200">
+              <div>
+                <h3 className="text-xl font-bold text-gray-900">
+                  {selectedFaculty ? "Edit Faculty Profile" : "Add New Faculty"}
+                </h3>
+                <p className="text-gray-600 mt-1">
+                  {selectedFaculty ? "Update faculty information" : "Create a new faculty profile"}
+                </p>
+              </div>
+              <button
+                onClick={() => setShowModal(false)}
+                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <FontAwesomeIcon icon={faTimes} className="text-xl" />
+              </button>
+            </div>
+
+            {/* Section Navigation */}
+            <div className="border-b border-gray-200 bg-gray-50">
+              <div className="flex overflow-x-auto">
+                {sections.map((section) => (
+                  <button
+                    key={section.id}
+                    onClick={() => setActiveSection(section.id)}
+                    className={`flex-shrink-0 px-6 py-4 text-sm font-medium transition-all duration-200 flex items-center space-x-2 whitespace-nowrap ${
+                      activeSection === section.id
+                        ? `bg-white text-${section.color}-600 border-b-2 border-${section.color}-500`
+                        : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                    }`}
+                  >
+                    <FontAwesomeIcon icon={section.icon} />
+                    <span className="hidden sm:inline">{section.name}</span>
+                    <span className="sm:hidden">{section.name.split(' ')[0]}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Section Content */}
+            <div className="p-6 overflow-y-auto max-h-[60vh]">
+              {renderSectionContent()}
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex justify-end space-x-3 p-6 border-t border-gray-200 bg-gray-50">
+              <button
+                onClick={() => setShowModal(false)}
+                className="px-6 py-3 border border-gray-300 rounded-xl text-gray-700 hover:bg-gray-50 transition-colors font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveFaculty}
+                className="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 flex items-center justify-center space-x-2 font-medium"
+              >
+                <FontAwesomeIcon icon={faSave} />
+                <span>Save Faculty</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default FacultyProfileManagement;

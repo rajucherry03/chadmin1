@@ -5,7 +5,7 @@ import {
   faIdCard,
   faMoneyBillWave,
   faBus,
-  faBed,
+  faHome,
   faChartBar,
   faUsers,
   faGraduationCap,
@@ -30,6 +30,7 @@ import HostelOverview from "./HostelOverview";
 import TransportOverview from "./TransportOverview";
 import IDCardGenerator from "./IDCardGenerator";
 import GradesManagement from "./GradesManagement";
+import BulkImport from "../BulkImport";
 
 const StudentDashboard = () => {
   const [stats, setStats] = useState({
@@ -46,6 +47,7 @@ const StudentDashboard = () => {
   });
   const [loading, setLoading] = useState(true);
   const [selectedView, setSelectedView] = useState("overview");
+  const [showBulkImport, setShowBulkImport] = useState(false);
 
   useEffect(() => {
     fetchDashboardData();
@@ -142,6 +144,9 @@ const StudentDashboard = () => {
       case "add-student":
         window.location.href = "/addstudent";
         break;
+      case "bulk-import":
+        setShowBulkImport(true);
+        break;
       case "id-cards":
         setSelectedView("idcards");
         break;
@@ -160,6 +165,12 @@ const StudentDashboard = () => {
       default:
         console.log(`Quick action: ${action}`);
     }
+  };
+
+  const handleBulkImportSuccess = (importedCount) => {
+    setShowBulkImport(false);
+    fetchDashboardData(); // Refresh the dashboard data
+    alert(`Successfully imported ${importedCount} students!`);
   };
 
   const renderView = () => {
@@ -190,26 +201,29 @@ const StudentDashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-3 sm:p-4">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-6">
-            <div className="flex items-center space-x-4">
-              <div className="bg-blue-500 p-3 rounded-full">
+        <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6 mb-4 sm:mb-6">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 sm:mb-4 mb-3">
+            <div className="flex items-center space-x-3 sm:space-x-4">
+              <div className="bg-blue-500 p-2.5 sm:p-3 rounded-full">
                 <FontAwesomeIcon icon={faUserGraduate} className="text-white text-2xl" />
               </div>
               <div>
-                <h1 className="text-3xl font-bold text-gray-800">Student Management Dashboard</h1>
-                <p className="text-gray-600">Comprehensive university student administration system</p>
+                <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">Student Management Dashboard</h1>
+                <p className="text-gray-600 text-sm sm:text-base">Comprehensive university student administration system</p>
               </div>
             </div>
-            <div className="flex items-center space-x-3 mt-4 lg:mt-0">
-              <button className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors">
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:space-x-3 mt-2 lg:mt-0 w-full sm:w-auto">
+              <button className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg flex items-center justify-center space-x-2 transition-colors w-full sm:w-auto">
                 <FontAwesomeIcon icon={faPlus} />
                 <span>Add Student</span>
               </button>
-              <button className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors">
+              <button 
+                onClick={() => setShowBulkImport(true)}
+                className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center justify-center space-x-2 transition-colors w-full sm:w-auto"
+              >
                 <FontAwesomeIcon icon={faUpload} />
                 <span>Bulk Import</span>
               </button>
@@ -222,7 +236,7 @@ const StudentDashboard = () => {
               { id: "overview", label: "Overview", icon: faChartBar },
               { id: "fees", label: "Fee Management", icon: faMoneyBillWave },
               { id: "grades", label: "Grades Management", icon: faGraduationCap },
-              { id: "hostel", label: "Hostel Management", icon: faBed },
+              { id: "hostel", label: "Hostel Management", icon: faHome },
               { id: "transport", label: "Transport Management", icon: faBus },
               { id: "idcards", label: "ID Cards", icon: faIdCard },
               { id: "reports", label: "Reports", icon: faDownload }
@@ -230,7 +244,7 @@ const StudentDashboard = () => {
               <button
                 key={tab.id}
                 onClick={() => setSelectedView(tab.id)}
-                className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
+                className={`flex items-center space-x-2 px-3 sm:px-4 py-2 rounded-lg transition-colors text-sm sm:text-base ${
                   selectedView === tab.id
                     ? "bg-blue-500 text-white"
                     : "bg-gray-100 text-gray-700 hover:bg-gray-200"
@@ -247,7 +261,7 @@ const StudentDashboard = () => {
         <QuickActions onActionClick={handleQuickAction} />
 
         {/* Main Content */}
-        <div className="bg-white rounded-xl shadow-lg p-6">
+        <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6">
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
@@ -258,6 +272,14 @@ const StudentDashboard = () => {
           )}
         </div>
       </div>
+
+      {/* Bulk Import Modal */}
+      {showBulkImport && (
+        <BulkImport
+          onClose={() => setShowBulkImport(false)}
+          onSuccess={handleBulkImportSuccess}
+        />
+      )}
     </div>
   );
 };

@@ -3,12 +3,11 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faUser,
   faGraduationCap,
-  faHome,
   faPhone,
   faEnvelope,
   faIdCard,
   faMoneyBillWave,
-  faBed,
+  faHome,
   faBus,
   faSave,
   faTimes,

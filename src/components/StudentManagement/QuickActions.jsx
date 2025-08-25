@@ -6,7 +6,7 @@ import {
   faDownload,
   faIdCard,
   faMoneyBillWave,
-  faBed,
+  faHome,
   faBus,
   faEnvelope,
   faPrint,
@@ -58,7 +58,7 @@ const QuickActions = ({ onActionClick }) => {
     {
       title: "Hostel Allocation",
       description: "Assign hostel rooms",
-      icon: faBed,
+      icon: faHome,
       color: "bg-indigo-500 hover:bg-indigo-600",
       action: "hostel"
     },

@@ -1,626 +1,897 @@
 import React, { useState, useEffect } from "react";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import "./StudentManagement.css";
+import {
+  faUserGraduate, faPlus, faUpload, faIdCard, faMoneyBillWave,
+  faGraduationCap, faHome, faBus, faEnvelope, faFileAlt,
+  faChartBar, faCog, faDownload, faSearch, faFilter,
+  faEye, faEdit, faTrash, faCheckCircle, faExclamationTriangle,
+  faUsers, faBell, faDatabase, faShieldAlt, faPalette, faTimes,
+  faChevronDown, faChevronUp, faBolt, faArrowRight
+} from "@fortawesome/free-solid-svg-icons";
 import { db } from "../firebase";
-import { collection, doc, getDocs, updateDoc, deleteDoc, query, where, orderBy, limit } from "firebase/firestore";
+import { collection, doc, getDocs, updateDoc, deleteDoc, query, where, orderBy, limit, onSnapshot } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
+import BulkImport from "./BulkImport";
+import EnhancedAddStudent from "./StudentManagement/EnhancedAddStudent";
+import EnhancedIDCardGenerator from "./StudentManagement/EnhancedIDCardGenerator";
+import FeeOverview from "./StudentManagement/FeeOverview";
+import GradesManagement from "./StudentManagement/GradesManagement";
+import HostelOverview from "./StudentManagement/HostelOverview";
+import TransportOverview from "./StudentManagement/TransportOverview";
+import Notifications from "./Notifications";
+import Reports from "./Reports";
+import SystemSettings from "./SystemSettings";
+import ExportData from "./ExportData";
 
 const StudentManagement = () => {
+  const [activeTab, setActiveTab] = useState(() => localStorage.getItem("sm.activeTab") || "overview");
   const [students, setStudents] = useState([]);
-  const [filteredStudents, setFilteredStudents] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selectedStudents, setSelectedStudents] = useState([]);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [filters, setFilters] = useState({
-    year: "",
-    section: "",
-    branch: "",
-    status: "",
-    gender: "",
-    category: ""
-  });
+  const [error, setError] = useState("");
+  const [showBulkImport, setShowBulkImport] = useState(false);
+  const [showAddStudent, setShowAddStudent] = useState(false);
+  const [showIDCardGenerator, setShowIDCardGenerator] = useState(false);
+  const [searchTerm, setSearchTerm] = useState(() => localStorage.getItem("sm.searchTerm") || "");
+  const [debouncedSearch, setDebouncedSearch] = useState(() => localStorage.getItem("sm.searchTerm") || "");
+  const [filterYear, setFilterYear] = useState(() => localStorage.getItem("sm.filterYear") || "");
+  const [filterDepartment, setFilterDepartment] = useState(() => localStorage.getItem("sm.filterDepartment") || "");
+  const [sortBy, setSortBy] = useState(() => localStorage.getItem("sm.sortBy") || "name");
+  const [sortDir, setSortDir] = useState(() => localStorage.getItem("sm.sortDir") || "asc");
   const [currentPage, setCurrentPage] = useState(1);
-  const [studentsPerPage] = useState(20);
-  const [selectedStudent, setSelectedStudent] = useState(null);
-  const [showModal, setShowModal] = useState(false);
-  const [analytics, setAnalytics] = useState({});
-  const [exportFormat, setExportFormat] = useState("excel");
+  const pageSize = 6; // Reduced for better fit
+  const [showFilters, setShowFilters] = useState(false);
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
 
-  const auth = getAuth();
-
-  // Fetch all students
-  const fetchStudents = async () => {
-    setLoading(true);
-    try {
-      const studentsCollection = collection(db, "students");
-      const querySnapshot = await getDocs(studentsCollection);
-      const allStudents = [];
-      
-      for (const yearDoc of querySnapshot.docs) {
-        const yearData = yearDoc.data();
-        const sectionsSnapshot = await getDocs(collection(db, `students/${yearDoc.id}`));
-        
-        for (const sectionDoc of sectionsSnapshot.docs) {
-          const studentsSnapshot = await getDocs(collection(db, `students/${yearDoc.id}/${sectionDoc.id}`));
-          
-          studentsSnapshot.docs.forEach(studentDoc => {
-            allStudents.push({
-              id: studentDoc.id,
-              ...studentDoc.data(),
-              year: yearDoc.id,
-              section: sectionDoc.id
-            });
-          });
-        }
-      }
-      
-      setStudents(allStudents);
-      setFilteredStudents(allStudents);
-      calculateAnalytics(allStudents);
-    } catch (error) {
-      console.error("Error fetching students:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Calculate analytics
-  const calculateAnalytics = (studentList) => {
-    const analytics = {
-      total: studentList.length,
-      byYear: {},
-      bySection: {},
-      byBranch: {},
-      byGender: {},
-      byCategory: {},
-      byStatus: {},
-      recentAdmissions: 0
-    };
-
-    studentList.forEach(student => {
-      // Year analytics
-      analytics.byYear[student.year] = (analytics.byYear[student.year] || 0) + 1;
-      
-      // Section analytics
-      analytics.bySection[student.section] = (analytics.bySection[student.section] || 0) + 1;
-      
-      // Branch analytics
-      if (student.branch) {
-        analytics.byBranch[student.branch] = (analytics.byBranch[student.branch] || 0) + 1;
-      }
-      
-      // Gender analytics
-      if (student.gender) {
-        analytics.byGender[student.gender] = (analytics.byGender[student.gender] || 0) + 1;
-      }
-      
-      // Category analytics
-      if (student.category) {
-        analytics.byCategory[student.category] = (analytics.byCategory[student.category] || 0) + 1;
-      }
-      
-      // Status analytics
-      analytics.byStatus[student.status || "Active"] = (analytics.byStatus[student.status || "Active"] || 0) + 1;
-      
-      // Recent admissions (last 30 days)
-      if (student.createdAt && student.createdAt.toDate) {
-        const admissionDate = student.createdAt.toDate();
-        const thirtyDaysAgo = new Date();
-        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-        
-        if (admissionDate > thirtyDaysAgo) {
-          analytics.recentAdmissions++;
-        }
-      }
-    });
-
-    setAnalytics(analytics);
-  };
-
-  // Apply filters and search
+  // Fetch students
   useEffect(() => {
-    let filtered = students;
-
-    // Apply search
-    if (searchTerm) {
-      filtered = filtered.filter(student =>
-        student.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        student.rollNo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        student.email?.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
-
-    // Apply filters
-    Object.keys(filters).forEach(key => {
-      if (filters[key]) {
-        filtered = filtered.filter(student => student[key] === filters[key]);
+    const unsubscribe = onSnapshot(
+      collection(db, "students"),
+      (snapshot) => {
+        const studentsData = [];
+        snapshot.forEach((doc) => {
+          studentsData.push({ id: doc.id, ...doc.data() });
+        });
+        setStudents(studentsData);
+        setLoading(false);
+        setError("");
+      },
+      (err) => {
+        console.error("Error fetching students:", err);
+        setError("Failed to load students. Please try again.");
+        setLoading(false);
       }
-    });
+    );
 
-    setFilteredStudents(filtered);
-    setCurrentPage(1);
-  }, [students, searchTerm, filters]);
-
-  // Load students on component mount
-  useEffect(() => {
-    fetchStudents();
+    return () => unsubscribe();
   }, []);
 
-  // Pagination
-  const indexOfLastStudent = currentPage * studentsPerPage;
-  const indexOfFirstStudent = indexOfLastStudent - studentsPerPage;
-  const currentStudents = filteredStudents.slice(indexOfFirstStudent, indexOfLastStudent);
-  const totalPages = Math.ceil(filteredStudents.length / studentsPerPage);
-
-  // Handle student selection
-  const handleStudentSelect = (studentId) => {
-    setSelectedStudents(prev => 
-      prev.includes(studentId) 
-        ? prev.filter(id => id !== studentId)
-        : [...prev, studentId]
-    );
+  // Calculate statistics
+  const stats = {
+    totalStudents: students.length,
+    activeStudents: students.filter(s => s.status === 'active').length,
+    newAdmissions: students.filter(s => {
+      const admissionDate = s.admissionDate || s.createdAt;
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      return admissionDate && new Date(admissionDate) > thirtyDaysAgo;
+    }).length,
+    pendingFees: students.filter(s => (s.totalFee || 0) > (s.paidFee || 0)).length,
+    hostelStudents: students.filter(s => s.hostelStatus === 'allocated').length,
+    transportStudents: students.filter(s => s.transportStatus === 'allocated').length
   };
 
-  // Handle bulk operations
-  const handleBulkOperation = async (operation) => {
-    if (selectedStudents.length === 0) {
-      alert("Please select students first");
-      return;
-    }
+  // Filter students
+  const filteredStudents = students.filter(student => {
+    const matchesSearch = student.name?.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+                         student.rollNo?.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+                         student.email?.toLowerCase().includes(debouncedSearch.toLowerCase());
+    const matchesYear = !filterYear || student.year === filterYear;
+    const matchesDepartment = !filterDepartment || student.department === filterDepartment;
+    
+    return matchesSearch && matchesYear && matchesDepartment;
+  });
 
-    const confirmed = window.confirm(`Are you sure you want to ${operation} ${selectedStudents.length} students?`);
-    if (!confirmed) return;
-
-    try {
-      for (const studentId of selectedStudents) {
-        const student = students.find(s => s.id === studentId);
-        if (student) {
-          const studentRef = doc(db, `students/${student.year}/${student.section}/${studentId}`);
-          
-          switch (operation) {
-            case "activate":
-              await updateDoc(studentRef, { status: "Active" });
-              break;
-            case "deactivate":
-              await updateDoc(studentRef, { status: "Inactive" });
-              break;
-            case "delete":
-              await deleteDoc(studentRef);
-              break;
-            default:
-              break;
-          }
-        }
+  // Sort students
+  const sortedStudents = [...filteredStudents].sort((a, b) => {
+    const dir = sortDir === "asc" ? 1 : -1;
+    const getVal = (s) => {
+      switch (sortBy) {
+        case "name": return (s.name || `${s.firstName || ''} ${s.lastName || ''}`).toLowerCase();
+        case "rollNo": return (s.rollNo || '').toString().toLowerCase();
+        case "year": return (s.year || '').toString().toLowerCase();
+        case "department": return (s.department || '').toLowerCase();
+        case "status": return (s.status || '').toLowerCase();
+        default: return (s.name || '').toLowerCase();
       }
-      
-      await fetchStudents();
-      setSelectedStudents([]);
-      alert(`${operation} completed successfully`);
-    } catch (error) {
-      console.error(`Error in bulk ${operation}:`, error);
-      alert(`Error in bulk ${operation}`);
+    };
+    const av = getVal(a);
+    const bv = getVal(b);
+    if (av < bv) return -1 * dir;
+    if (av > bv) return 1 * dir;
+    return 0;
+  });
+
+  // Pagination
+  const totalPages = Math.max(1, Math.ceil(sortedStudents.length / pageSize));
+  const paginatedStudents = sortedStudents.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  useEffect(() => {
+    // Reset to first page when filters/search/sort change
+    setCurrentPage(1);
+  }, [debouncedSearch, filterYear, filterDepartment, sortBy, sortDir]);
+
+  const clearFilters = () => {
+    setSearchTerm("");
+    setFilterYear("");
+    setFilterDepartment("");
+    setSortBy("name");
+    setSortDir("asc");
+  };
+
+  // Quick action handlers
+  const handleQuickAction = (action) => {
+    switch (action) {
+      case 'addStudent':
+        setShowAddStudent(true);
+        break;
+      case 'bulkImport':
+        setShowBulkImport(true);
+        break;
+      case 'idCards':
+        setShowIDCardGenerator(true);
+        break;
+      case 'feeManagement':
+        setActiveTab('fee-management');
+        break;
+      case 'grades':
+        setActiveTab('grades-management');
+        break;
+      case 'hostel':
+        setActiveTab('hostel-management');
+        break;
+      case 'transport':
+        setActiveTab('transport-management');
+        break;
+      case 'notifications':
+        setActiveTab('notifications');
+        break;
+      case 'reports':
+        setActiveTab('reports');
+        break;
+      case 'export':
+        setActiveTab('export-data');
+        break;
+      case 'settings':
+        setActiveTab('system-settings');
+        break;
+      default:
+        break;
     }
   };
 
-  // Export data
-  const exportData = () => {
-    const dataToExport = selectedStudents.length > 0 
-      ? students.filter(s => selectedStudents.includes(s.id))
-      : filteredStudents;
-
-    if (exportFormat === "excel") {
-      // Implementation for Excel export
-      console.log("Exporting to Excel:", dataToExport);
-    } else if (exportFormat === "csv") {
-      // Implementation for CSV export
-      const csvContent = "data:text/csv;charset=utf-8," + 
-        "Roll No,Name,Email,Year,Section,Branch,Status\n" +
-        dataToExport.map(s => 
-          `${s.rollNo},${s.name},${s.email},${s.year},${s.section},${s.branch},${s.status}`
-        ).join("\n");
-      
-      const encodedUri = encodeURI(csvContent);
-      const link = document.createElement("a");
-      link.setAttribute("href", encodedUri);
-      link.setAttribute("download", "students.csv");
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+  // Quick actions data - reduced for better fit
+  const quickActions = [
+    {
+      id: 'addStudent',
+      title: 'Add Student',
+      description: 'Register a new student',
+      icon: faPlus,
+      color: 'bg-blue-500',
+      action: () => handleQuickAction('addStudent')
+    },
+    {
+      id: 'bulkImport',
+      title: 'Bulk Import',
+      description: 'Import multiple students',
+      icon: faUpload,
+      color: 'bg-green-500',
+      action: () => handleQuickAction('bulkImport')
+    },
+    {
+      id: 'idCards',
+      title: 'ID Card Generator',
+      description: 'Generate student ID cards',
+      icon: faIdCard,
+      color: 'bg-purple-500',
+      action: () => handleQuickAction('idCards')
+    },
+    {
+      id: 'feeManagement',
+      title: 'Fee Management',
+      description: 'Manage student fees',
+      icon: faMoneyBillWave,
+      color: 'bg-yellow-500',
+      action: () => handleQuickAction('feeManagement')
+    },
+    {
+      id: 'grades',
+      title: 'Grades Management',
+      description: 'Manage student grades',
+      icon: faGraduationCap,
+      color: 'bg-indigo-500',
+      action: () => handleQuickAction('grades')
+    },
+    {
+      id: 'hostel',
+      title: 'Hostel Management',
+      description: 'Manage hostel allocations',
+      icon: faHome,
+      color: 'bg-pink-500',
+      action: () => handleQuickAction('hostel')
+    },
+    {
+      id: 'transport',
+      title: 'Transport Management',
+      description: 'Manage transport routes',
+      icon: faBus,
+      color: 'bg-orange-500',
+      action: () => handleQuickAction('transport')
+    },
+    {
+      id: 'notifications',
+      title: 'Notifications',
+      description: 'Send bulk notifications',
+      icon: faBell,
+      color: 'bg-red-500',
+      action: () => handleQuickAction('notifications')
     }
-  };
+  ];
 
-  // View student details
-  const viewStudentDetails = (student) => {
-    setSelectedStudent(student);
-    setShowModal(true);
+  // Navigation tabs - reduced for better fit
+  const tabs = [
+    { id: 'overview', name: 'Overview', icon: faEye },
+    { id: 'fee-management', name: 'Fee Management', icon: faMoneyBillWave },
+    { id: 'grades-management', name: 'Grades Management', icon: faGraduationCap },
+    { id: 'hostel-management', name: 'Hostel Management', icon: faHome },
+    { id: 'transport-management', name: 'Transport Management', icon: faBus },
+    { id: 'id-cards', name: 'ID Cards', icon: faIdCard },
+    { id: 'notifications', name: 'Notifications', icon: faBell },
+    { id: 'reports', name: 'Reports', icon: faChartBar }
+  ];
+
+  // Persist preferences
+  useEffect(() => { localStorage.setItem("sm.activeTab", activeTab); }, [activeTab]);
+  useEffect(() => { localStorage.setItem("sm.searchTerm", searchTerm); }, [searchTerm]);
+  useEffect(() => { localStorage.setItem("sm.filterYear", filterYear); }, [filterYear]);
+  useEffect(() => { localStorage.setItem("sm.filterDepartment", filterDepartment); }, [filterDepartment]);
+  useEffect(() => { localStorage.setItem("sm.sortBy", sortBy); }, [sortBy]);
+  useEffect(() => { localStorage.setItem("sm.sortDir", sortDir); }, [sortDir]);
+
+  // Debounce search input
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchTerm), 300);
+    return () => clearTimeout(t);
+  }, [searchTerm]);
+
+  // Render tab content
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'overview':
+        return (
+          <div className="h-full flex flex-col space-y-8">
+            {/* Compact Quick Actions */}
+            <div className="bg-white rounded-lg shadow-sm p-6 flex-shrink-0">
+              <div className="flex items-center space-x-3 mb-6">
+                <div className="bg-gradient-to-r from-blue-500 to-purple-600 p-2 rounded-lg">
+                  <FontAwesomeIcon icon={faBolt} className="text-white text-lg" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900">Quick Actions</h3>
+              </div>
+              <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-8 gap-4 quick-actions-grid">
+                {quickActions.map((action) => (
+                  <button
+                    key={action.id}
+                    onClick={action.action}
+                    className="group relative overflow-hidden rounded-lg border border-gray-200 bg-white p-4 hover:border-gray-300 hover:shadow-lg transition-all duration-200 text-left transform hover:-translate-y-1 flex flex-col items-center justify-center"
+                  >
+                    <div className={`${action.color} text-white p-3 rounded-lg group-hover:scale-110 transition-transform duration-200 shadow-sm mb-3`}>
+                      <FontAwesomeIcon icon={action.icon} className="text-lg" />
+                    </div>
+                                          <div className="text-center w-full">
+                        <h4 className="font-semibold text-gray-900 text-sm group-hover:text-blue-600 transition-colors leading-tight mb-1">{action.title}</h4>
+                        <p className="text-xs text-gray-600 leading-tight">{action.description}</p>
+                      </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Compact Statistics */}
+            <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-5 flex-shrink-0 stats-grid">
+              <div className="bg-gradient-to-br from-blue-600 via-blue-500 to-blue-400 rounded-lg shadow-md text-white relative stats-card">
+                <div className="flex flex-col justify-between h-full">
+                  <div>
+                    <p className="text-blue-100 text-xs font-medium stats-label">Total Students</p>
+                    <p className="text-3xl font-bold stats-value">{stats.totalStudents}</p>
+                  </div>
+                  <div className="bg-white/20 p-3 rounded-full backdrop-blur-sm w-fit stats-icon">
+                    <FontAwesomeIcon icon={faUsers} className="text-xl" />
+                  </div>
+                </div>
+              </div>
+              
+              <div className="bg-gradient-to-br from-emerald-600 via-emerald-500 to-emerald-400 rounded-lg shadow-md text-white relative stats-card">
+                <div className="flex flex-col justify-between h-full">
+                  <div>
+                    <p className="text-emerald-100 text-xs font-medium stats-label">Active Students</p>
+                    <p className="text-3xl font-bold stats-value">{stats.activeStudents}</p>
+                  </div>
+                  <div className="bg-white/20 p-3 rounded-full backdrop-blur-sm w-fit stats-icon">
+                    <FontAwesomeIcon icon={faCheckCircle} className="text-xl" />
+                  </div>
+                </div>
+              </div>
+              
+              <div className="bg-gradient-to-br from-amber-600 via-amber-500 to-amber-400 rounded-lg shadow-md text-white relative stats-card">
+                <div className="flex flex-col justify-between h-full">
+                  <div>
+                    <p className="text-amber-100 text-xs font-medium stats-label">New Admissions</p>
+                    <p className="text-3xl font-bold stats-value">{stats.newAdmissions}</p>
+                  </div>
+                  <div className="bg-white/20 p-3 rounded-full backdrop-blur-sm w-fit stats-icon">
+                    <FontAwesomeIcon icon={faPlus} className="text-xl" />
+                  </div>
+                </div>
+              </div>
+              
+              <div className="bg-gradient-to-br from-rose-600 via-rose-500 to-rose-400 rounded-lg shadow-md text-white relative stats-card">
+                <div className="flex flex-col justify-between h-full">
+                  <div>
+                    <p className="text-rose-100 text-xs font-medium stats-label">Pending Fees</p>
+                    <p className="text-3xl font-bold stats-value">{stats.pendingFees}</p>
+                  </div>
+                  <div className="bg-white/20 p-3 rounded-full backdrop-blur-sm w-fit stats-icon">
+                    <FontAwesomeIcon icon={faMoneyBillWave} className="text-xl" />
+                  </div>
+                </div>
+              </div>
+              
+              <div className="bg-gradient-to-br from-violet-600 via-violet-500 to-violet-400 rounded-lg shadow-md text-white relative stats-card">
+                <div className="flex flex-col justify-between h-full">
+                  <div>
+                    <p className="text-violet-100 text-xs font-medium stats-label">Hostel Students</p>
+                    <p className="text-3xl font-bold stats-value">{stats.hostelStudents}</p>
+                  </div>
+                  <div className="bg-white/20 p-3 rounded-full backdrop-blur-sm w-fit stats-icon">
+                    <FontAwesomeIcon icon={faHome} className="text-xl" />
+                  </div>
+                </div>
+              </div>
+              
+              <div className="bg-gradient-to-br from-orange-600 via-orange-500 to-orange-400 rounded-lg shadow-md text-white relative stats-card">
+                <div className="flex flex-col justify-between h-full">
+                  <div>
+                    <p className="text-orange-100 text-xs font-medium stats-label">Transport Students</p>
+                    <p className="text-3xl font-bold stats-value">{stats.transportStudents}</p>
+                  </div>
+                  <div className="bg-white/20 p-3 rounded-full backdrop-blur-sm w-fit stats-icon">
+                    <FontAwesomeIcon icon={faBus} className="text-xl" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Compact Recent Students */}
+            <div className="bg-white rounded-lg shadow-sm overflow-hidden flex-1 min-h-0">
+              <div className="bg-gradient-to-r from-gray-50 to-gray-100 px-4 py-3 border-b border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <div className="bg-blue-100 p-1.5 rounded-lg">
+                      <FontAwesomeIcon icon={faUserGraduate} className="text-blue-600 text-sm" />
+                    </div>
+                    <h3 className="text-sm font-semibold text-gray-900">Recent Students</h3>
+                  </div>
+                  <button className="text-blue-600 hover:text-blue-800 text-xs font-medium bg-blue-50 px-2 py-1 rounded hover:bg-blue-100 transition-colors">
+                    View All
+                  </button>
+                </div>
+              </div>
+              <div className="overflow-hidden h-full student-table-container">
+                {sortedStudents.length === 0 ? (
+                  <div className="p-3 text-center text-gray-600 text-xs">No students found. Adjust filters or add a new student.</div>
+                ) : (
+                  <>
+                    {/* Desktop table */}
+                    <table className="w-full divide-y divide-gray-200 hidden lg:table h-full">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Roll No</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Year</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {paginatedStudents.map((student) => (
+                          <tr key={student.id} className="hover:bg-gray-50">
+                            <td className="px-3 py-2 whitespace-nowrap">
+                              <div className="flex items-center">
+                                <div className="flex-shrink-0 h-8 w-8">
+                                  <div className="h-8 w-8 rounded-full bg-gray-300 flex items-center justify-center">
+                                    <FontAwesomeIcon icon={faUserGraduate} className="text-gray-600 text-sm" />
+                                  </div>
+                                </div>
+                                <div className="ml-3">
+                                  <div className="text-sm font-medium text-gray-900 truncate max-w-[140px]">
+                                    {student.name || `${student.firstName || ''} ${student.lastName || ''}`.trim()}
+                                  </div>
+                                  <div className="text-xs text-gray-500 truncate max-w-[140px]">{student.email}</div>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900">{student.rollNo}</td>
+                            <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 truncate max-w-[100px]">{student.department}</td>
+                            <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900">{student.year}</td>
+                            <td className="px-3 py-2 whitespace-nowrap">
+                              <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                student.status === 'active' ? 'bg-green-100 text-green-800' :
+                                student.status === 'inactive' ? 'bg-red-100 text-red-800' :
+                                'bg-gray-100 text-gray-800'
+                              }`}>
+                                {student.status}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2 whitespace-nowrap text-sm font-medium">
+                              <div className="flex space-x-2">
+                                <button className="text-blue-600 hover:text-blue-900 p-1"><FontAwesomeIcon icon={faEye} className="text-sm" /></button>
+                                <button className="text-green-600 hover:text-green-900 p-1"><FontAwesomeIcon icon={faEdit} className="text-sm" /></button>
+                                <button className="text-red-600 hover:text-red-900 p-1"><FontAwesomeIcon icon={faTrash} className="text-sm" /></button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+
+                    {/* Tablet table */}
+                    <table className="w-full divide-y divide-gray-200 hidden sm:table lg:hidden h-full">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-1.5 py-1.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student</th>
+                          <th className="px-1.5 py-1.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Roll No</th>
+                          <th className="px-1.5 py-1.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
+                          <th className="px-1.5 py-1.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                          <th className="px-1.5 py-1.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {paginatedStudents.map((student) => (
+                          <tr key={student.id} className="hover:bg-gray-50">
+                            <td className="px-1.5 py-1.5 whitespace-nowrap">
+                              <div className="flex items-center">
+                                <div className="flex-shrink-0 h-5 w-5">
+                                  <div className="h-5 w-5 rounded-full bg-gray-300 flex items-center justify-center">
+                                    <FontAwesomeIcon icon={faUserGraduate} className="text-gray-600 text-xs" />
+                                  </div>
+                                </div>
+                                <div className="ml-1.5">
+                                  <div className="text-xs font-medium text-gray-900 truncate max-w-[80px]">
+                                    {student.name || `${student.firstName || ''} ${student.lastName || ''}`.trim()}
+                                  </div>
+                                  <div className="text-xs text-gray-500 truncate max-w-[80px]">{student.email}</div>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-1.5 py-1.5 whitespace-nowrap text-xs text-gray-900">{student.rollNo}</td>
+                            <td className="px-1.5 py-1.5 whitespace-nowrap text-xs text-gray-900 truncate max-w-[60px]">{student.department}</td>
+                            <td className="px-1.5 py-1.5 whitespace-nowrap">
+                              <span className={`inline-flex px-1 py-0.5 text-xs font-semibold rounded-full ${
+                                student.status === 'active' ? 'bg-green-100 text-green-800' :
+                                student.status === 'inactive' ? 'bg-red-100 text-red-800' :
+                                'bg-gray-100 text-gray-800'
+                              }`}>
+                                {student.status}
+                              </span>
+                            </td>
+                            <td className="px-1.5 py-1.5 whitespace-nowrap text-xs font-medium">
+                              <div className="flex space-x-0.5">
+                                <button className="text-blue-600 hover:text-blue-900 p-0.5"><FontAwesomeIcon icon={faEye} className="text-xs" /></button>
+                                <button className="text-green-600 hover:text-green-900 p-0.5"><FontAwesomeIcon icon={faEdit} className="text-xs" /></button>
+                                <button className="text-red-600 hover:text-red-900 p-0.5"><FontAwesomeIcon icon={faTrash} className="text-xs" /></button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+
+                    {/* Mobile list */}
+                    <div className="sm:hidden divide-y divide-gray-200 h-full overflow-y-auto">
+                      {paginatedStudents.map((student) => (
+                        <div key={student.id} className="p-2 flex items-start gap-2">
+                          <div className="h-6 w-6 rounded-full bg-gray-300 flex items-center justify-center flex-shrink-0">
+                            <FontAwesomeIcon icon={faUserGraduate} className="text-gray-600 text-xs" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between mb-1">
+                              <p className="font-medium text-gray-900 text-xs truncate">
+                                {student.name || `${student.firstName || ''} ${student.lastName || ''}`.trim()}
+                              </p>
+                              <span className={`ml-1 inline-flex px-1 py-0.5 text-xs font-semibold rounded-full flex-shrink-0 ${
+                                student.status === 'active' ? 'bg-green-100 text-green-800' :
+                                student.status === 'inactive' ? 'bg-red-100 text-red-800' :
+                                'bg-gray-100 text-gray-800'
+                              }`}>
+                                {student.status}
+                              </span>
+                            </div>
+                            <p className="text-xs text-gray-600 mb-1">
+                              <span className="font-medium">Roll No:</span> {student.rollNo} • 
+                              <span className="font-medium ml-1">Dept:</span> {student.department} • 
+                              <span className="font-medium ml-1">Year:</span> {student.year}
+                            </p>
+                            <p className="text-xs text-gray-500 truncate mb-1">{student.email}</p>
+                            <div className="flex gap-1 text-blue-600">
+                              <button className="text-xs bg-blue-50 px-1.5 py-0.5 rounded">View</button>
+                              <button className="text-xs bg-green-50 px-1.5 py-0.5 rounded text-green-600">Edit</button>
+                              <button className="text-xs bg-red-50 px-1.5 py-0.5 rounded text-red-600">Delete</button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Compact Pagination */}
+                    <div className="px-3 py-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-t border-gray-200">
+                      <div className="flex items-center justify-between sm:justify-start">
+                        <span className="text-sm text-gray-600">
+                          Showing {((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, sortedStudents.length)} of {sortedStudents.length} results
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-center sm:justify-end gap-2">
+                        <button
+                          onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                          disabled={currentPage === 1}
+                          className={`px-3 py-1 rounded border text-sm ${
+                            currentPage === 1 
+                              ? 'text-gray-400 border-gray-200 cursor-not-allowed' 
+                              : 'text-gray-700 border-gray-300 hover:bg-gray-50'
+                          }`}
+                        >
+                          Previous
+                        </button>
+                        <div className="flex items-center gap-1">
+                          {Array.from({ length: Math.min(3, totalPages) }, (_, i) => {
+                            const pageNum = i + 1;
+                            return (
+                              <button
+                                key={pageNum}
+                                onClick={() => setCurrentPage(pageNum)}
+                                className={`px-3 py-1 rounded text-sm ${
+                                  currentPage === pageNum
+                                    ? 'bg-blue-500 text-white'
+                                    : 'text-gray-700 hover:bg-gray-100'
+                                }`}
+                              >
+                                {pageNum}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <button
+                          onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                          disabled={currentPage === totalPages}
+                          className={`px-3 py-1 rounded border text-sm ${
+                            currentPage === totalPages 
+                              ? 'text-gray-400 border-gray-200 cursor-not-allowed' 
+                              : 'text-gray-700 border-gray-300 hover:bg-gray-50'
+                          }`}
+                        >
+                          Next
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      
+      case 'fee-management':
+        return <FeeOverview stats={stats} />;
+      
+      case 'grades-management':
+        return <GradesManagement />;
+      
+      case 'hostel-management':
+        return <HostelOverview />;
+      
+      case 'transport-management':
+        return <TransportOverview stats={stats} onTabChange={setActiveTab} />;
+      
+      case 'id-cards':
+        return <EnhancedIDCardGenerator />;
+      
+      case 'notifications':
+        return <Notifications />;
+      
+      case 'reports':
+        return <Reports />;
+      
+      case 'export-data':
+        return <ExportData />;
+      
+      case 'system-settings':
+        return <SystemSettings />;
+      
+      default:
+        return <div>Select a tab to view content</div>;
+    }
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading students...</p>
-        </div>
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-white rounded-lg shadow p-6">
+        <p className="text-red-600 font-medium mb-4">{error}</p>
+        <button
+          onClick={() => { setLoading(true); setError(""); }}
+          className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg"
+        >
+          Retry
+        </button>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">Student Management</h1>
-          <p className="text-gray-600">Comprehensive student administration and analytics</p>
-        </div>
-
-        {/* Analytics Dashboard */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
-                </svg>
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Total Students</p>
-                <p className="text-2xl font-semibold text-gray-900">{analytics.total}</p>
-              </div>
+    <div className="h-screen flex flex-col overflow-hidden student-management-container">
+      {/* Compact Header */}
+      <div className="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-lg shadow-sm p-4 text-white flex-shrink-0">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center space-x-3">
+            <div className="bg-white/20 p-2 rounded-full backdrop-blur-sm">
+              <FontAwesomeIcon icon={faUserGraduate} className="text-xl sm:text-2xl" />
             </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-green-100 rounded-lg">
-                <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Active Students</p>
-                <p className="text-2xl font-semibold text-gray-900">{analytics.byStatus.Active || 0}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-yellow-100 rounded-lg">
-                <svg className="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Recent Admissions</p>
-                <p className="text-2xl font-semibold text-gray-900">{analytics.recentAdmissions}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-purple-100 rounded-lg">
-                <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                </svg>
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Branches</p>
-                <p className="text-2xl font-semibold text-gray-900">{Object.keys(analytics.byBranch).length}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Search and Filters */}
-        <div className="bg-white rounded-lg shadow p-6 mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
             <div>
-              <input
-                type="text"
-                placeholder="Search by name, roll no, or email..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-            </div>
-            <select
-              value={filters.year}
-              onChange={(e) => setFilters(prev => ({ ...prev, year: e.target.value }))}
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value="">All Years</option>
-              {Object.keys(analytics.byYear).map(year => (
-                <option key={year} value={year}>{year}</option>
-              ))}
-            </select>
-            <select
-              value={filters.section}
-              onChange={(e) => setFilters(prev => ({ ...prev, section: e.target.value }))}
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value="">All Sections</option>
-              {Object.keys(analytics.bySection).map(section => (
-                <option key={section} value={section}>{section}</option>
-              ))}
-            </select>
-            <select
-              value={filters.status}
-              onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value="">All Status</option>
-              <option value="Active">Active</option>
-              <option value="Inactive">Inactive</option>
-              <option value="Suspended">Suspended</option>
-            </select>
-          </div>
-
-          {/* Bulk Operations */}
-          <div className="flex flex-wrap gap-4 items-center">
-            <div className="flex items-center space-x-4">
-              <button
-                onClick={() => handleBulkOperation("activate")}
-                disabled={selectedStudents.length === 0}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
-              >
-                Activate Selected
-              </button>
-              <button
-                onClick={() => handleBulkOperation("deactivate")}
-                disabled={selectedStudents.length === 0}
-                className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
-              >
-                Deactivate Selected
-              </button>
-              <button
-                onClick={() => handleBulkOperation("delete")}
-                disabled={selectedStudents.length === 0}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
-              >
-                Delete Selected
-              </button>
-            </div>
-
-            <div className="flex items-center space-x-4 ml-auto">
-              <select
-                value={exportFormat}
-                onChange={(e) => setExportFormat(e.target.value)}
-                className="p-2 border border-gray-300 rounded-lg"
-              >
-                <option value="excel">Excel</option>
-                <option value="csv">CSV</option>
-              </select>
-              <button
-                onClick={exportData}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                Export {selectedStudents.length > 0 ? 'Selected' : 'All'}
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Students Table */}
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    <input
-                      type="checkbox"
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setSelectedStudents(currentStudents.map(s => s.id));
-                        } else {
-                          setSelectedStudents([]);
-                        }
-                      }}
-                      checked={selectedStudents.length === currentStudents.length && currentStudents.length > 0}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                    />
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Student
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Academic Info
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Contact
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {currentStudents.map((student) => (
-                  <tr key={student.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <input
-                        type="checkbox"
-                        checked={selectedStudents.includes(student.id)}
-                        onChange={() => handleStudentSelect(student.id)}
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                      />
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="flex-shrink-0 h-10 w-10">
-                          <div className="h-10 w-10 rounded-full bg-gray-300 flex items-center justify-center">
-                            <span className="text-sm font-medium text-gray-700">
-                              {student.name?.charAt(0)?.toUpperCase()}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="ml-4">
-                          <div className="text-sm font-medium text-gray-900">{student.name}</div>
-                          <div className="text-sm text-gray-500">{student.rollNo}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{student.year} - {student.section}</div>
-                      <div className="text-sm text-gray-500">{student.branch}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{student.email}</div>
-                      <div className="text-sm text-gray-500">{student.studentMobile}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                        student.status === 'Active' ? 'bg-green-100 text-green-800' :
-                        student.status === 'Inactive' ? 'bg-red-100 text-red-800' :
-                        'bg-yellow-100 text-yellow-800'
-                      }`}>
-                        {student.status || 'Active'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <button
-                        onClick={() => viewStudentDetails(student)}
-                        className="text-blue-600 hover:text-blue-900 mr-4"
-                      >
-                        View
-                      </button>
-                      <button
-                        onClick={() => {/* Edit functionality */}}
-                        className="text-green-600 hover:text-green-900"
-                      >
-                        Edit
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Pagination */}
-          <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
-            <div className="flex-1 flex justify-between sm:hidden">
-              <button
-                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                disabled={currentPage === 1}
-                className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:bg-gray-100 disabled:cursor-not-allowed"
-              >
-                Previous
-              </button>
-              <button
-                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                disabled={currentPage === totalPages}
-                className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:bg-gray-100 disabled:cursor-not-allowed"
-              >
-                Next
-              </button>
-            </div>
-            <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
-              <div>
-                <p className="text-sm text-gray-700">
-                  Showing <span className="font-medium">{indexOfFirstStudent + 1}</span> to{' '}
-                  <span className="font-medium">
-                    {Math.min(indexOfLastStudent, filteredStudents.length)}
-                  </span>{' '}
-                  of <span className="font-medium">{filteredStudents.length}</span> results
-                </p>
-              </div>
-              <div>
-                <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                    <button
-                      key={page}
-                      onClick={() => setCurrentPage(page)}
-                      className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
-                        currentPage === page
-                          ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
-                          : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
-                      }`}
-                    >
-                      {page}
-                    </button>
-                  ))}
-                </nav>
+              <h2 className="text-xl sm:text-2xl font-bold">Student Management</h2>
+              <p className="text-blue-100 text-xs sm:text-sm">Comprehensive student management system</p>
+              <div className="flex items-center space-x-3 mt-1 text-xs">
+                <span className="flex items-center space-x-1">
+                  <FontAwesomeIcon icon={faUsers} className="text-blue-200" />
+                  <span>{students.length} Total Students</span>
+                </span>
+                <span className="flex items-center space-x-1">
+                  <FontAwesomeIcon icon={faCheckCircle} className="text-green-300" />
+                  <span>{stats.activeStudents} Active</span>
+                </span>
               </div>
             </div>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <button
+              onClick={() => setShowAddStudent(true)}
+              className="bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white px-3 py-2 rounded-lg flex items-center justify-center space-x-2 text-xs font-medium transition-all duration-200 border border-white/30"
+            >
+              <FontAwesomeIcon icon={faPlus} />
+              <span>Add Student</span>
+            </button>
+            <button
+              onClick={() => setShowBulkImport(true)}
+              className="bg-white hover:bg-gray-50 text-blue-600 px-3 py-2 rounded-lg flex items-center justify-center space-x-2 text-xs font-medium transition-all duration-200"
+            >
+              <FontAwesomeIcon icon={faUpload} />
+              <span>Bulk Import</span>
+            </button>
           </div>
         </div>
       </div>
 
-      {/* Student Details Modal */}
-      {showModal && selectedStudent && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-1/2 shadow-lg rounded-md bg-white">
-            <div className="mt-3">
+      {/* Compact Search and Filters */}
+      <div className="bg-white rounded-lg shadow-sm p-4 flex-shrink-0">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center space-x-2">
+            <div className="bg-blue-100 p-1.5 rounded-lg">
+              <FontAwesomeIcon icon={faSearch} className="text-blue-600 text-sm" />
+            </div>
+            <h3 className="text-sm font-semibold text-gray-900">Search & Filter Students</h3>
+          </div>
+          <button
+            onClick={() => setShowFilters(v => !v)}
+            className="lg:hidden inline-flex items-center gap-1 text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded hover:bg-blue-100 transition-colors"
+          >
+            <FontAwesomeIcon icon={showFilters ? faChevronUp : faChevronDown} />
+            {showFilters ? 'Hide' : 'Show'}
+          </button>
+        </div>
+
+        <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 filter-container ${showFilters ? '' : 'hidden lg:grid'}`}>
+          <div className="sm:col-span-2 lg:col-span-1 min-w-0">
+            <label className="block text-xs font-medium text-gray-700 mb-1">Search Students</label>
+            <div className="relative">
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search by name, roll no, or email..."
+                className="w-full pl-8 pr-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-xs"
+              />
+              <FontAwesomeIcon icon={faSearch} className="absolute left-2.5 top-2 text-gray-400 text-xs" />
+            </div>
+          </div>
+          
+          <div className="min-w-0">
+            <label className="block text-xs font-medium text-gray-700 mb-1">Filter by Year</label>
+            <select
+              value={filterYear}
+              onChange={(e) => setFilterYear(e.target.value)}
+              className="w-full px-2 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-xs"
+            >
+              <option value="">All Years</option>
+              {Array.from(new Set(students.map(s => s.year))).filter(Boolean).map(year => (
+                <option key={year} value={year}>{year}</option>
+              ))}
+            </select>
+          </div>
+          
+          <div className="min-w-0">
+            <label className="block text-xs font-medium text-gray-700 mb-1">Filter by Department</label>
+            <select
+              value={filterDepartment}
+              onChange={(e) => setFilterDepartment(e.target.value)}
+              className="w-full px-2 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-xs"
+            >
+              <option value="">All Departments</option>
+              {Array.from(new Set(students.map(s => s.department))).filter(Boolean).map(dept => (
+                <option key={dept} value={dept}>{dept}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="sm:col-span-2 lg:col-span-1 min-w-0">
+            <label className="block text-xs font-medium text-gray-700 mb-1">Sort</label>
+            <div className="grid grid-cols-2 gap-2">
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="w-full px-2 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-xs"
+              >
+                <option value="name">Name</option>
+                <option value="rollNo">Roll No</option>
+                <option value="year">Year</option>
+                <option value="department">Department</option>
+                <option value="status">Status</option>
+              </select>
+              <select
+                value={sortDir}
+                onChange={(e) => setSortDir(e.target.value)}
+                className="w-full px-2 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-xs"
+              >
+                <option value="asc">Asc</option>
+                <option value="desc">Desc</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mt-3">
+          <div className="flex flex-wrap gap-1 min-w-0">
+            {searchTerm && (
+              <span className="inline-flex items-center px-1.5 py-0.5 text-xs bg-gray-100 rounded">
+                Search: "{searchTerm}"
+                <button className="ml-1 text-gray-500" onClick={() => setSearchTerm("")}>×</button>
+              </span>
+            )}
+            {filterYear && (
+              <span className="inline-flex items-center px-1.5 py-0.5 text-xs bg-gray-100 rounded">
+                Year: {filterYear}
+                <button className="ml-1 text-gray-500" onClick={() => setFilterYear("")}>×</button>
+              </span>
+            )}
+            {filterDepartment && (
+              <span className="inline-flex items-center px-1.5 py-0.5 text-xs bg-gray-100 rounded">
+                Dept: {filterDepartment}
+                <button className="ml-1 text-gray-500" onClick={() => setFilterDepartment("")}>×</button>
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-500">{sortedStudents.length} result{sortedStudents.length !== 1 ? 's' : ''}</span>
+            <button onClick={clearFilters} className="text-xs text-blue-600 hover:underline">Clear all</button>
+          </div>
+        </div>
+      </div>
+
+      {/* Compact Navigation Tabs */}
+      <div className="bg-white rounded-lg shadow-sm overflow-hidden flex-shrink-0">
+        <div className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
+          <nav className="flex overflow-x-auto scrollbar-hide nav-tabs-container px-2">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`py-2 px-3 border-b-2 font-medium text-xs sm:text-sm flex items-center space-x-2 whitespace-nowrap flex-shrink-0 transition-all duration-200 ${
+                  activeTab === tab.id
+                    ? 'border-blue-500 text-blue-600 bg-white shadow-sm'
+                    : 'border-transparent text-gray-600 hover:text-blue-600 hover:border-blue-300'
+                }`}
+              >
+                <FontAwesomeIcon icon={tab.icon} className={`text-xs ${activeTab === tab.id ? 'text-blue-500' : 'text-gray-400'}`} />
+                <span>{tab.name}</span>
+              </button>
+            ))}
+          </nav>
+        </div>
+      </div>
+
+      {/* Main Content Area */}
+      <div className="flex-1 overflow-hidden p-3">
+        {renderTabContent()}
+      </div>
+
+      {/* Mobile FAB for Add Student */}
+      <button
+        onClick={() => setShowAddStudent(true)}
+        className="lg:hidden fixed bottom-4 right-4 z-50 bg-blue-600 hover:bg-blue-700 text-white rounded-full w-12 h-12 shadow-lg flex items-center justify-center transition-transform hover:scale-110"
+        aria-label="Add Student"
+      >
+        <FontAwesomeIcon icon={faPlus} />
+      </button>
+
+      {/* Modals */}
+      {showBulkImport && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto student-modal">
+            <div className="p-4 sm:p-6">
               <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-medium text-gray-900">Student Details</h3>
+                <h3 className="text-lg font-semibold text-gray-900">Bulk Import Students</h3>
                 <button
-                  onClick={() => setShowModal(false)}
+                  onClick={() => setShowBulkImport(false)}
                   className="text-gray-400 hover:text-gray-600"
                 >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
+                  <FontAwesomeIcon icon={faTimes} />
                 </button>
               </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <h4 className="font-semibold text-gray-900 mb-3">Basic Information</h4>
-                  <div className="space-y-2">
-                    <p><span className="font-medium">Name:</span> {selectedStudent.name}</p>
-                    <p><span className="font-medium">Roll No:</span> {selectedStudent.rollNo}</p>
-                    <p><span className="font-medium">Email:</span> {selectedStudent.email}</p>
-                    <p><span className="font-medium">Gender:</span> {selectedStudent.gender}</p>
-                    <p><span className="font-medium">Date of Birth:</span> {selectedStudent.dateOfBirth}</p>
-                    <p><span className="font-medium">Blood Group:</span> {selectedStudent.bloodGroup}</p>
-                  </div>
-                </div>
-                
-                <div>
-                  <h4 className="font-semibold text-gray-900 mb-3">Academic Information</h4>
-                  <div className="space-y-2">
-                    <p><span className="font-medium">Year:</span> {selectedStudent.year}</p>
-                    <p><span className="font-medium">Section:</span> {selectedStudent.section}</p>
-                    <p><span className="font-medium">Branch:</span> {selectedStudent.branch}</p>
-                    <p><span className="font-medium">Semester:</span> {selectedStudent.semester}</p>
-                    <p><span className="font-medium">Admission Date:</span> {selectedStudent.admissionDate}</p>
-                    <p><span className="font-medium">Status:</span> {selectedStudent.status}</p>
-                  </div>
-                </div>
-                
-                <div>
-                  <h4 className="font-semibold text-gray-900 mb-3">Contact Information</h4>
-                  <div className="space-y-2">
-                    <p><span className="font-medium">Mobile:</span> {selectedStudent.studentMobile}</p>
-                    <p><span className="font-medium">Address:</span> {selectedStudent.address}</p>
-                    <p><span className="font-medium">Emergency Contact:</span> {selectedStudent.emergencyContact}</p>
-                  </div>
-                </div>
-                
-                <div>
-                  <h4 className="font-semibold text-gray-900 mb-3">Family Information</h4>
-                  <div className="space-y-2">
-                    <p><span className="font-medium">Father's Name:</span> {selectedStudent.fatherName}</p>
-                    <p><span className="font-medium">Father's Mobile:</span> {selectedStudent.fatherMobile}</p>
-                    <p><span className="font-medium">Mother's Name:</span> {selectedStudent.motherName}</p>
-                    <p><span className="font-medium">Guardian:</span> {selectedStudent.guardianName}</p>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="mt-6 flex justify-end">
+              <BulkImport onClose={() => setShowBulkImport(false)} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showAddStudent && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto student-modal">
+            <div className="p-4 sm:p-6 student-modal-content">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">Add New Student</h3>
                 <button
-                  onClick={() => setShowModal(false)}
-                  className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400"
+                  onClick={() => setShowAddStudent(false)}
+                  className="text-gray-400 hover:text-gray-600"
                 >
-                  Close
+                  <FontAwesomeIcon icon={faTimes} />
                 </button>
               </div>
+              <EnhancedAddStudent onClose={() => setShowAddStudent(false)} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showIDCardGenerator && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-y-auto student-modal">
+            <div className="p-4 sm:p-6 student-modal-content">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">ID Card Generator</h3>
+                <button
+                  onClick={() => setShowIDCardGenerator(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <FontAwesomeIcon icon={faTimes} />
+                </button>
+              </div>
+              <EnhancedIDCardGenerator onClose={() => setShowIDCardGenerator(false)} />
             </div>
           </div>
         </div>

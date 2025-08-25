@@ -8,18 +8,23 @@
     "@fontsource/open-sans": "^5.2.6",
     "@fontsource/poppins": "^5.2.6",
     "@fontsource/roboto": "^5.2.6",
-    "@fortawesome/free-solid-svg-icons": "^6.7.0",
-    "@fortawesome/react-fontawesome": "^0.2.2",
+    "@fortawesome/fontawesome-svg-core": "^7.0.0",
+    "@fortawesome/free-solid-svg-icons": "^6.7.2",
+    "@fortawesome/react-fontawesome": "^0.2.6",
     "@tanstack/react-query": "^5.85.5",
     "@vitejs/plugin-react": "^4.2.1",
     "autoprefixer": "^10.4.21",
+    "canvg": "^4.0.3",
+    "dompurify": "^3.2.6",
     "firebase": "^11.0.2",
     "firebase-admin": "^13.0.1",
     "framer-motion": "^11.11.17",
+    "html2canvas": "^1.4.1",
     "jspdf": "^2.5.2",
     "jspdf-autotable": "^3.8.4",
     "pdfjs-dist": "^4.8.69",
     "postcss": "^8.5.6",
+    "qrcode": "^1.5.4",
     "react": "^18.3.1",
     "react-circular-progressbar": "^2.1.0",
     "react-dom": "^18.3.1",
@@ -39,6 +44,5 @@
   },
   "engines": {
     "node": "18.19.0"
-  },
-  "devDependencies": {}
+  }
 }

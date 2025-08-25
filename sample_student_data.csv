@@ -1,0 +1,6 @@
+Admission Number,Full Name,Gender,Date of Birth,Email,Mobile Number,Program,Department,Year,Section,Father's Name,Father's Mobile,Mother's Name,Address,State,District,Pincode,Fee Structure,Total Fee,Payment Status
+2024001,John Doe,Male,2000-05-15,john.doe@email.com,9876543210,B.Tech,Computer Science & Engineering,I,A,Robert Doe,9876543211,Jane Doe,"123 Main Street, City Center",Maharashtra,Mumbai,400001,Regular,150000,Pending
+2024002,Jane Smith,Female,2001-03-22,jane.smith@email.com,9876543212,B.Tech,Electrical & Electronics Engineering,I,B,Michael Smith,9876543213,Sarah Smith,"456 Oak Avenue, Downtown",Karnataka,Bangalore,560001,Scholarship,120000,Paid
+2024003,Mike Johnson,Male,2000-11-08,mike.johnson@email.com,9876543214,MBA,Management Studies,I,A,David Johnson,9876543215,Lisa Johnson,"789 Pine Road, Suburb",Tamil Nadu,Chennai,600001,Merit,180000,Partial
+2024004,Emily Brown,Female,2001-07-14,emily.brown@email.com,9876543216,B.Tech,Mechanical Engineering,I,C,James Brown,9876543217,Mary Brown,"321 Elm Street, Village",Telangana,Hyderabad,500001,Regular,150000,Pending
+2024005,Alex Wilson,Male,2000-12-03,alex.wilson@email.com,9876543218,B.Tech,Civil Engineering,I,A,Thomas Wilson,9876543219,Patricia Wilson,"654 Maple Drive, Town",Gujarat,Ahmedabad,380001,Management,200000,Paid

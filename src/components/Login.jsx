@@ -11,7 +11,7 @@ const Login = () => {
   const navigate = useNavigate();
 
   // List of Admin Emails
-  const adminEmails = ["admin@example.com", "dshod@mits.ac.in"]; // Add your admin emails here
+  const adminEmails = ["admin@gmail.com", "dshod@mits.ac.in"]; // Add your admin emails here
 
   const isAdmin = (email) => adminEmails.includes(email.toLowerCase());
 
