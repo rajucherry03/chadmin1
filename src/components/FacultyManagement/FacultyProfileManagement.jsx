@@ -82,6 +82,10 @@ const FacultyProfileManagement = () => {
   const [filterDesignation, setFilterDesignation] = useState("");
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState("grid"); // grid or list
+  const [sortBy, setSortBy] = useState("name");
+  const [sortOrder, setSortOrder] = useState("asc");
+  const [bulkActions, setBulkActions] = useState([]);
+  const [selectedFacultyIds, setSelectedFacultyIds] = useState([]);
 
   // Form states for different sections
   const [personalDetails, setPersonalDetails] = useState({
@@ -221,14 +225,52 @@ const FacultyProfileManagement = () => {
     }
   };
 
-  const filteredFaculty = faculty.filter((member) => {
-    const matchesSearch = member.personalDetails?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         member.employmentDetails?.employeeId?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesDepartment = !filterDepartment || member.employmentDetails?.department === filterDepartment;
-    const matchesDesignation = !filterDesignation || member.employmentDetails?.designation === filterDesignation;
-    
-    return matchesSearch && matchesDepartment && matchesDesignation;
-  });
+  const filteredFaculty = faculty
+    .filter((member) => {
+      const matchesSearch = member.personalDetails?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           member.employmentDetails?.employeeId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           member.personalDetails?.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           member.employmentDetails?.department?.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesDepartment = !filterDepartment || member.employmentDetails?.department === filterDepartment;
+      const matchesDesignation = !filterDesignation || member.employmentDetails?.designation === filterDesignation;
+      
+      return matchesSearch && matchesDepartment && matchesDesignation;
+    })
+    .sort((a, b) => {
+      let aValue, bValue;
+      
+      switch (sortBy) {
+        case "name":
+          aValue = a.personalDetails?.name || "";
+          bValue = b.personalDetails?.name || "";
+          break;
+        case "employeeId":
+          aValue = a.employmentDetails?.employeeId || "";
+          bValue = b.employmentDetails?.employeeId || "";
+          break;
+        case "department":
+          aValue = a.employmentDetails?.department || "";
+          bValue = b.employmentDetails?.department || "";
+          break;
+        case "designation":
+          aValue = a.employmentDetails?.designation || "";
+          bValue = b.employmentDetails?.designation || "";
+          break;
+        case "joiningDate":
+          aValue = new Date(a.employmentDetails?.joiningDate || 0);
+          bValue = new Date(b.employmentDetails?.joiningDate || 0);
+          break;
+        default:
+          aValue = a.personalDetails?.name || "";
+          bValue = b.personalDetails?.name || "";
+      }
+      
+      if (sortOrder === "asc") {
+        return aValue > bValue ? 1 : -1;
+      } else {
+        return aValue < bValue ? 1 : -1;
+      }
+    });
 
   const sections = [
     { id: "personal", name: "Personal Details", icon: faUser, color: "blue" },
@@ -894,15 +936,15 @@ const FacultyProfileManagement = () => {
         </div>
       </div>
 
-      {/* Search and Filters */}
+      {/* Enhanced Search and Filters */}
       <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="md:col-span-2">
+        <div className="grid grid-cols-1 lg:grid-cols-6 gap-4">
+          <div className="lg:col-span-2">
             <div className="relative">
               <FontAwesomeIcon icon={faSearch} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
-                placeholder="Search by name or employee ID..."
+                placeholder="Search by name, ID, email, or department..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
@@ -917,10 +959,18 @@ const FacultyProfileManagement = () => {
             >
               <option value="">All Departments</option>
               <option value="Computer Science">Computer Science</option>
+              <option value="Electronics">Electronics</option>
+              <option value="Information Technology">Information Technology</option>
+              <option value="Data Science">Data Science</option>
+              <option value="Mechanical">Mechanical</option>
+              <option value="Civil">Civil</option>
+              <option value="Electrical">Electrical</option>
+              <option value="Chemical">Chemical</option>
               <option value="Mathematics">Mathematics</option>
               <option value="Physics">Physics</option>
               <option value="Chemistry">Chemistry</option>
-              <option value="Biology">Biology</option>
+              <option value="English">English</option>
+              <option value="Management">Management</option>
             </select>
           </div>
           <div>
@@ -934,9 +984,84 @@ const FacultyProfileManagement = () => {
               <option value="Associate Professor">Associate Professor</option>
               <option value="Assistant Professor">Assistant Professor</option>
               <option value="Lecturer">Lecturer</option>
+              <option value="Senior Lecturer">Senior Lecturer</option>
+              <option value="Research Scholar">Research Scholar</option>
+              <option value="Visiting Faculty">Visiting Faculty</option>
+              <option value="Adjunct Faculty">Adjunct Faculty</option>
             </select>
           </div>
+          <div>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+            >
+              <option value="name">Sort by Name</option>
+              <option value="employeeId">Sort by Employee ID</option>
+              <option value="department">Sort by Department</option>
+              <option value="designation">Sort by Designation</option>
+              <option value="joiningDate">Sort by Joining Date</option>
+            </select>
+          </div>
+          <div>
+            <button
+              onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
+              className="w-full px-4 py-3 border border-gray-300 rounded-xl hover:bg-gray-50 transition-all duration-200 flex items-center justify-center space-x-2"
+            >
+              <FontAwesomeIcon icon={sortOrder === "asc" ? faSortUp : faSortDown} className="text-gray-600" />
+              <span className="text-gray-700">{sortOrder === "asc" ? "Ascending" : "Descending"}</span>
+            </button>
+          </div>
         </div>
+        
+        {/* Active Filters Display */}
+        {(searchTerm || filterDepartment || filterDesignation) && (
+          <div className="mt-4 flex flex-wrap gap-2">
+            {searchTerm && (
+              <span className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-blue-100 text-blue-800">
+                Search: {searchTerm}
+                <button
+                  onClick={() => setSearchTerm("")}
+                  className="ml-2 text-blue-600 hover:text-blue-800"
+                >
+                  <FontAwesomeIcon icon={faTimes} className="text-xs" />
+                </button>
+              </span>
+            )}
+            {filterDepartment && (
+              <span className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-green-100 text-green-800">
+                Department: {filterDepartment}
+                <button
+                  onClick={() => setFilterDepartment("")}
+                  className="ml-2 text-green-600 hover:text-green-800"
+                >
+                  <FontAwesomeIcon icon={faTimes} className="text-xs" />
+                </button>
+              </span>
+            )}
+            {filterDesignation && (
+              <span className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-purple-100 text-purple-800">
+                Designation: {filterDesignation}
+                <button
+                  onClick={() => setFilterDesignation("")}
+                  className="ml-2 text-purple-600 hover:text-purple-800"
+                >
+                  <FontAwesomeIcon icon={faTimes} className="text-xs" />
+                </button>
+              </span>
+            )}
+            <button
+              onClick={() => {
+                setSearchTerm("");
+                setFilterDepartment("");
+                setFilterDesignation("");
+              }}
+              className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-gray-100 text-gray-700 hover:bg-gray-200"
+            >
+              Clear All
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Faculty Cards/List */}

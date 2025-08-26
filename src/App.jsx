@@ -5,6 +5,7 @@ import { auth } from "./firebase"; // Import Firebase auth
 import { queryClient } from "./utils/queryClient";
 import { LoadingSpinner } from "./components/LazyComponent";
 import ErrorBoundary from "./components/ErrorBoundary";
+import OfflineIndicator from "./components/OfflineIndicator";
 import "./utils/fonts"; // Import font optimizations
 const AdminNavbar = lazy(() => import("./components/Navbar.jsx"));
 const AdminDashboard = lazy(() => import("./components/AdminDashboard.jsx"));
@@ -74,6 +75,7 @@ function App() {
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
+        <OfflineIndicator />
         <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <Routes>
             <Route path="/" element={

@@ -90,8 +90,16 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
     
-    // Students collection
+    // Students collection - General collection for easy querying
     match /students/{studentId} {
+      allow read: if canViewStudent(studentId);
+      allow create: if isAdmin() || isController() || isHOD();
+      allow update: if canModifyStudent(studentId);
+      allow delete: if isAdmin();
+    }
+    
+    // Simplified hierarchical student structure: students/{department}/{year_section}/{studentId}
+    match /students/{department}/{yearSection}/{studentId} {
       allow read: if canViewStudent(studentId);
       allow create: if isAdmin() || isController() || isHOD();
       allow update: if canModifyStudent(studentId);

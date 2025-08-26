@@ -1,7 +1,7 @@
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
-import { getFirestore, initializeFirestore } from "firebase/firestore";
+import { getFirestore, initializeFirestore, enableNetwork, disableNetwork } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 import { getStorage } from "firebase/storage";
 import { handleFirebaseAnalyticsError } from "./utils/errorHandler.js";
@@ -27,11 +27,33 @@ try {
   // Analytics will fall back to local config
 }
 
-// Initialize Firestore with cache configuration (replaces enableIndexedDbPersistence)
+// Initialize Firestore with improved offline configuration
 export const db = initializeFirestore(app, {
-  cacheSizeBytes: 50 * 1024 * 1024, // 50MB cache size
+  cacheSizeBytes: 100 * 1024 * 1024, // Increased to 100MB for better offline support
   experimentalForceLongPolling: true, // Better for some network conditions
+  useFetchStreams: false, // Disable fetch streams for better compatibility
 });
+
+// Network connectivity management
+export const firestoreNetworkManager = {
+  async enableNetwork() {
+    try {
+      await enableNetwork(db);
+      console.log('Firestore network enabled');
+    } catch (error) {
+      console.warn('Failed to enable Firestore network:', error);
+    }
+  },
+  
+  async disableNetwork() {
+    try {
+      await disableNetwork(db);
+      console.log('Firestore network disabled');
+    } catch (error) {
+      console.warn('Failed to disable Firestore network:', error);
+    }
+  }
+};
 
 export const auth = getAuth(app);
 export const storage = getStorage(app);

@@ -1,11 +1,12 @@
 import React from 'react';
+import { config } from './config.js';
 
 // Performance monitoring utilities
 class PerformanceMonitor {
   constructor() {
     this.metrics = new Map();
     this.observers = new Map();
-    this.isEnabled = process.env.NODE_ENV === 'development';
+    this.isEnabled = config.performance.enabled;
   }
 
   // Start timing a performance metric
@@ -111,17 +112,25 @@ class PerformanceMonitor {
       });
       fidObserver.observe({ entryTypes: ['first-input'] });
 
-      // Cumulative Layout Shift (CLS)
+      // Cumulative Layout Shift (CLS) - Reduced logging frequency
+      let clsValue = 0;
+      let lastClsLog = 0;
       const clsObserver = new PerformanceObserver((list) => {
-        let clsValue = 0;
         const entries = list.getEntries();
         entries.forEach((entry) => {
           if (!entry.hadRecentInput) {
             clsValue += entry.value;
           }
         });
-        console.log('📐 CLS:', clsValue.toFixed(4));
-        this.sendToAnalytics('CLS', clsValue);
+        
+        // Only log CLS if it changes significantly or at regular intervals
+        const now = Date.now();
+        if (Math.abs(clsValue - lastClsLog) > config.performance.clsThreshold || 
+            now - lastClsLog > config.performance.clsLogInterval) {
+          console.log('📐 CLS:', clsValue.toFixed(4));
+          this.sendToAnalytics('CLS', clsValue);
+          lastClsLog = clsValue;
+        }
       });
       clsObserver.observe({ entryTypes: ['layout-shift'] });
     }
