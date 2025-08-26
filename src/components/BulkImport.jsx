@@ -1204,19 +1204,18 @@ const BulkImport = ({ onClose, onSuccess }) => {
           const sanitizedYear = (studentData.year || 'Unknown').toString().replace(/[^a-zA-Z0-9]/g, '');
           const sanitizedSection = (studentData.section || 'Unknown').toString().replace(/[^a-zA-Z0-9]/g, '');
           
-          // Create the full path as a document reference to avoid collection path issues
-          const studentDoc = doc(db, `students/${sanitizedDepartment}/${sanitizedYear}/${sanitizedSection}/${studentId}`);
+          // Create organized path structure using subcollections
+          // Structure: students/{department}/years/{year}/sections/{section}/students/{studentId}
+          // This creates: students/CSE_DS/years/II/sections/A/students/21691A3201_1
+          const departmentRef = collection(db, `students/${sanitizedDepartment}/years`);
+          const yearRef = collection(departmentRef, `${sanitizedYear}/sections`);
+          const sectionRef = collection(yearRef, `${sanitizedSection}/students`);
+          const studentDoc = doc(sectionRef, studentId);
           
           // Debug logging to verify the path structure
-          console.log(`Creating document at path: students/${sanitizedDepartment}/${sanitizedYear}/${sanitizedSection}/${studentId}`);
+          console.log(`Creating document at path: students/${sanitizedDepartment}/years/${sanitizedYear}/sections/${sanitizedSection}/students/${studentId}`);
           
           currentBatch.set(studentDoc, finalStudentData);
-
-          // Also store in general students collection for easy querying
-          // This is allowed by the security rules for admins, controllers, and HODs
-          const generalStudentsRef = collection(db, "students");
-          const generalStudentDoc = doc(generalStudentsRef, studentId);
-          currentBatch.set(generalStudentDoc, finalStudentData);
 
           successCount++;
           batchCount++;
@@ -1230,7 +1229,6 @@ const BulkImport = ({ onClose, onSuccess }) => {
                  } catch (error) {
            console.error(`Error processing row ${i + 1}:`, error);
            console.error(`Row data:`, row);
-           console.error(`Processed student data:`, studentData);
            
            // Handle errors with better user feedback
            const errorInfo = await FirebaseErrorHandler.handleError(error, `BulkImport-Row${i + 1}`);
@@ -1244,8 +1242,8 @@ const BulkImport = ({ onClose, onSuccess }) => {
            }
            
            // Log specific error details for debugging
-           if (error.message?.includes('collection reference')) {
-             console.error(`Collection reference error for department: ${studentData.department}`);
+           if (error.message?.includes('collection reference') || error.message?.includes('document reference')) {
+             console.error(`Path reference error for row ${i + 1}`);
            }
            
            errorCount++;
@@ -1552,8 +1550,11 @@ const BulkImport = ({ onClose, onSuccess }) => {
           <div className="bg-white border border-blue-200 rounded-lg p-3">
             <p className="text-blue-700 text-sm font-medium mb-1">Storage Path:</p>
             <code className="bg-gray-100 px-3 py-2 rounded-lg text-sm font-mono text-gray-800 block">
-              students/{sanitizeDepartmentForPath(selectedDepartment || 'Department')}/{(selectedYear || 'Year').toString().replace(/[^a-zA-Z0-9]/g, '')}/{(selectedSection || 'Section').toString().replace(/[^a-zA-Z0-9]/g, '')}/[studentId]
+              students/{sanitizeDepartmentForPath(selectedDepartment || 'Department')}/years/{(selectedYear || 'Year').toString().replace(/[^a-zA-Z0-9]/g, '')}/sections/{(selectedSection || 'Section').toString().replace(/[^a-zA-Z0-9]/g, '')}/students/[studentId]
             </code>
+            <p className="text-blue-600 text-xs mt-2">
+              Example: students/CSE_DS/years/II/sections/A/students/21691A3201_1
+            </p>
           </div>
           <p className="text-blue-700 text-sm">
             <strong>Note:</strong> Only <strong>Admission Number</strong> and <strong>Full Name</strong> are required fields. All other fields are optional.
