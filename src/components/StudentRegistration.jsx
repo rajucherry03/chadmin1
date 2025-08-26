@@ -81,6 +81,9 @@ const StudentRegistration = () => {
   const [isPopupVisible, setIsPopupVisible] = useState(false);
   const [customFieldConfig, setCustomFieldConfig] = useState({});
   const [configLoading, setConfigLoading] = useState(false);
+  // If this page is opened after creating an Auth user, we expect a UID to be provided.
+  // We will keep the Firestore document id the same as the Auth UID.
+  const [linkedAuthUid, setLinkedAuthUid] = useState("");
 
   const tabs = [
     { id: "basic", label: "Basic Info", icon: "👤" },
@@ -98,6 +101,22 @@ const StudentRegistration = () => {
   // Load custom field configuration
   useEffect(() => {
     loadCustomFieldConfig();
+  }, []);
+
+  // Read a pre-linked Auth UID from URL or localStorage so that
+  // the Firestore student document uses the same identifier.
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const fromQuery = params.get("uid") || "";
+      const fromStorage = localStorage.getItem("prelinkedAuthUid") || "";
+      const resolved = fromQuery || fromStorage || "";
+      if (resolved) {
+        setLinkedAuthUid(resolved);
+      }
+    } catch (_) {
+      // no-op; best-effort only
+    }
   }, []);
 
   // Update studentData state when custom field config changes
@@ -277,12 +296,15 @@ const StudentRegistration = () => {
         return;
       }
 
-      const studentId = `${studentData.year}_${studentData.section}_${studentData.admissionNumber}`;
+      // Determine the Firestore document id. Prefer the linked Auth UID so that
+      // Authentication user UID and student document id are identical.
+      const documentId = linkedAuthUid || `${studentData.year}_${studentData.section}_${studentData.admissionNumber}`;
       
       // Prepare student record with all custom fields
       const studentRecord = {
         ...studentData,
-        studentId,
+        authUid: documentId,
+        studentId: documentId,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         status: "Active",
@@ -300,11 +322,11 @@ const StudentRegistration = () => {
 
       // Store in Firebase with proper structure
       const sectionRef = collection(db, `students/${studentData.year}/${studentData.section}`);
-      await setDoc(doc(sectionRef, studentId), studentRecord);
+      await setDoc(doc(sectionRef, documentId), studentRecord);
 
       // Also store in a general students collection for easy querying
       const generalStudentsRef = collection(db, "students");
-      await setDoc(doc(generalStudentsRef, studentId), studentRecord);
+      await setDoc(doc(generalStudentsRef, documentId), studentRecord);
 
       handlePopup("Student added successfully!", "success");
       

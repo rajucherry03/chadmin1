@@ -13,7 +13,7 @@ import {
 import { db } from "../firebase";
 import { collection, collectionGroup, doc, getDocs, updateDoc, deleteDoc, query, where, orderBy, limit, onSnapshot } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
-import BulkImport from "./BulkImport";
+import BulkImportFixed from "./BulkImportFixed";
 
 // Import new components
 import RollNumberGenerator from "./StudentManagement/RollNumberGenerator";
@@ -884,22 +884,14 @@ const StudentManagement = () => {
 
       {/* Modals */}
       {showBulkImport && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto student-modal">
-            <div className="p-4 sm:p-6">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">Bulk Import Students</h3>
-                <button
-                  onClick={() => setShowBulkImport(false)}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  <FontAwesomeIcon icon={faTimes} />
-                </button>
-              </div>
-              <BulkImport onClose={() => setShowBulkImport(false)} />
-            </div>
-          </div>
-        </div>
+        <BulkImportFixed 
+          onClose={() => setShowBulkImport(false)} 
+          onSuccess={(count) => {
+            setShowBulkImport(false);
+            fetchStudents(); // Refresh the student list
+            alert(`Successfully imported ${count} students!`);
+          }}
+        />
       )}
 
 

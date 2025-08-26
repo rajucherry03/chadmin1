@@ -176,6 +176,12 @@ const AdminNavbar = () => {
       to: "/grades-management",
       links: [],
     },
+    {
+      title: "Event Management",
+      icon: FaCalendarAlt,
+      to: "/event-management",
+      links: [],
+    },
   ]), []);
 
   // Auto-open the section containing the active route (for dropdown sections only)

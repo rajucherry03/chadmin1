@@ -1,5 +1,5 @@
 // Import the functions you need from the SDKs you need
-import { initializeApp } from "firebase/app";
+import { initializeApp, getApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
 import { getFirestore, initializeFirestore, enableNetwork, disableNetwork } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
@@ -58,3 +58,18 @@ export const firestoreNetworkManager = {
 export const auth = getAuth(app);
 export const storage = getStorage(app);
 export { analytics };
+
+// Secondary app/auth for background user creation (prevents switching current session)
+let workerApp = null;
+try {
+  workerApp = getApp('worker');
+} catch (_) {
+  try {
+    workerApp = initializeApp(firebaseConfig, 'worker');
+  } catch (e) {
+    // If something goes wrong, fall back to primary app (will switch session on create)
+    workerApp = app;
+  }
+}
+
+export const workerAuth = getAuth(workerApp);

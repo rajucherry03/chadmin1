@@ -17,8 +17,8 @@ function Relationships() {
   const [selectedYear, setSelectedYear] = useState("");
   const [selectedSection, setSelectedSection] = useState("");
   const [selectedStudents, setSelectedStudents] = useState([]);
-  const [selectedCourse, setSelectedCourse] = useState(null);
-  const [selectedFaculty, setSelectedFaculty] = useState(null);
+  const [selectedCourse, setSelectedCourse] = useState("");
+  const [selectedFaculty, setSelectedFaculty] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
   // Fetch faculty for selected department
@@ -40,7 +40,7 @@ function Relationships() {
   useEffect(() => {
     const fetchData = async () => {
       if (!selectedDepartment || !selectedYear || !selectedSection) {
-        console.log("Year or Section not selected yet.");
+        console.log("Department, Year or Section not selected yet.");
         return;
       }
 
@@ -51,6 +51,7 @@ function Relationships() {
 
         const studentsPath = studentsCollectionPath(selectedDepartment, selectedYear, normalizedSection);
         const coursesPath = coursesCollectionPath(selectedDepartment, selectedYear, normalizedSection);
+        console.log("Fetching courses from:", coursesPath);
 
         const [studentsSnapshot, coursesSnapshot] = await Promise.all([
           getDocs(collection(db, studentsPath)).catch(() => ({ docs: [] })),
@@ -66,9 +67,9 @@ function Relationships() {
 
         // Fallback: try ALL_SECTIONS if specific section is empty
         if (coursesData.length === 0 && normalizedSection !== "ALL_SECTIONS") {
-          const allSecSnap = await getDocs(
-            collection(db, coursesCollectionPath(selectedDepartment, selectedYear, "ALL_SECTIONS"))
-          ).catch(() => ({ docs: [] }));
+          const allSecPath = coursesCollectionPath(selectedDepartment, selectedYear, "ALL_SECTIONS");
+          console.log("Trying fallback path:", allSecPath);
+          const allSecSnap = await getDocs(collection(db, allSecPath)).catch(() => ({ docs: [] }));
           coursesData = allSecSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
         }
         setCourses(coursesData);
@@ -111,8 +112,17 @@ function Relationships() {
   };
 
   const assignRelationships = async () => {
-    if (!selectedYear || !selectedSection || !selectedCourse || !selectedFaculty || selectedStudents.length === 0) {
-      alert("Please select year, section, course, faculty, and at least one student.");
+    if (!selectedYear || !selectedSection || !selectedCourse || !selectedFaculty) {
+      alert("Please select year, section, course, and faculty.");
+      return;
+    }
+
+    const studentIdsToAssign = selectedStudents.length > 0
+      ? selectedStudents
+      : students.map((s) => s.id);
+
+    if (studentIdsToAssign.length === 0) {
+      alert("No students found for the selected year/section.");
       return;
     }
 
@@ -120,44 +130,39 @@ function Relationships() {
 
     try {
       const batch = writeBatch(db);
+      const normalizedSection = selectedSection.toUpperCase();
+      const teachingKey = `${selectedYear}_${normalizedSection}`;
 
-      // Update only selected students
-      selectedStudents.forEach((studentId) => {
-        const studentRef = doc(
-          db,
-          studentDocPath(selectedDepartment, selectedYear, selectedSection, studentId)
-        );
-        const student = students.find((s) => s.id === studentId);
-        if (student) {
-          const updatedCourses = student.courses
-            ? [...new Set([...student.courses, selectedCourse])]
-            : [selectedCourse];
-          batch.update(studentRef, { courses: updatedCourses });
-        }
+      // Upsert each student with the course in their list
+      studentIdsToAssign.forEach((studentId) => {
+        const studentRef = doc(db, studentDocPath(selectedDepartment, selectedYear, normalizedSection, studentId));
+        batch.set(studentRef, { courses: [selectedCourse] }, { merge: true });
       });
 
-      // Update the faculty with the assigned course
+      // Update faculty courses and per section/year teaching list
       const facultyRef = doc(db, `faculty/${selectedDepartment}/members/${selectedFaculty}`);
-      const facultyDoc = faculty.find((fac) => fac.id === selectedFaculty);
-      if (facultyDoc) {
-        const updatedFacultyCourses = facultyDoc.courses
-          ? [...new Set([...facultyDoc.courses, selectedCourse])]
-          : [selectedCourse];
-        batch.update(facultyRef, { courses: updatedFacultyCourses });
-      }
-
-      // Update the course with the selected students
-      const courseRef = doc(
-        db,
-        courseDocPath(selectedDepartment, selectedYear, selectedSection, selectedCourse)
+      batch.set(
+        facultyRef,
+        {
+          courses: [selectedCourse],
+          teaching: { [teachingKey]: studentIdsToAssign },
+        },
+        { merge: true }
       );
-      batch.update(courseRef, {
-        instructor: selectedFaculty,
-        students: selectedStudents,
-      });
+
+      // Upsert the course with instructor and students
+      const courseRef = doc(db, courseDocPath(selectedDepartment, selectedYear, normalizedSection, selectedCourse));
+      batch.set(
+        courseRef,
+        {
+          instructor: selectedFaculty,
+          students: studentIdsToAssign,
+        },
+        { merge: true }
+      );
 
       await batch.commit();
-      alert("Relationships successfully assigned for selected students!");
+      alert(`Assigned course to ${studentIdsToAssign.length} students and faculty successfully.`);
     } catch (error) {
       console.error("Error assigning relationships:", error);
       alert("An error occurred while assigning relationships.");

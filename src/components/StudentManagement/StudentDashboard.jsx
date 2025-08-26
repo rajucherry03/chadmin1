@@ -31,7 +31,7 @@ import HostelOverview from "./HostelOverview";
 import TransportOverview from "./TransportOverview";
 import IDCardGenerator from "./IDCardGenerator";
 import GradesManagement from "./GradesManagement";
-import BulkImport from "../BulkImport";
+import BulkImportFixed from "../BulkImportFixed";
 
 const StudentDashboard = () => {
   const navigate = useNavigate();
@@ -280,7 +280,7 @@ const StudentDashboard = () => {
 
       {/* Bulk Import Modal */}
       {showBulkImport && (
-        <BulkImport
+        <BulkImportFixed
           onClose={() => setShowBulkImport(false)}
           onSuccess={handleBulkImportSuccess}
         />
