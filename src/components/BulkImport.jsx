@@ -118,6 +118,8 @@ const BulkImport = ({ onClose, onSuccess }) => {
   };
 
   // Sanitize department name for Firestore collection paths
+  // This function converts department names with spaces and special characters
+  // into valid Firestore collection names that don't break the path structure
   const sanitizeDepartmentForPath = (department) => {
     const shortNames = {
       'Civil Engineering': 'CivilEngineering',
@@ -1181,6 +1183,13 @@ const BulkImport = ({ onClose, onSuccess }) => {
             importBatch: new Date().toISOString()
           };
 
+          // Validate required fields before saving
+          if (!finalStudentData.admissionNumber || !finalStudentData.name) {
+            console.error(`Row ${i + 1}: Missing required fields - Admission Number: ${finalStudentData.admissionNumber}, Name: ${finalStudentData.name}`);
+            errorCount++;
+            continue;
+          }
+
           if (finalStudentData.totalFee && finalStudentData.paidAmount) {
             finalStudentData.remainingAmount = parseFloat(finalStudentData.totalFee) - parseFloat(finalStudentData.paidAmount);
           } else if (finalStudentData.totalFee) {
@@ -1189,11 +1198,18 @@ const BulkImport = ({ onClose, onSuccess }) => {
 
                                // Store in the hierarchical structure: students/{department}/{year}/{section}/{studentId}
           // This creates a clean department → year → section → student structure
+          // Note: We sanitize the department name to avoid Firestore collection path issues
+          // with spaces and special characters in department names
           const sanitizedDepartment = sanitizeDepartmentForPath(studentData.department || 'Unknown');
-          const departmentRef = collection(db, `students/${sanitizedDepartment}`);
-          const yearRef = collection(departmentRef, `${studentData.year || 'Unknown'}`);
-          const sectionRef = collection(yearRef, `${studentData.section || 'Unknown'}`);
-          const studentDoc = doc(sectionRef, studentId);
+          const sanitizedYear = (studentData.year || 'Unknown').toString().replace(/[^a-zA-Z0-9]/g, '');
+          const sanitizedSection = (studentData.section || 'Unknown').toString().replace(/[^a-zA-Z0-9]/g, '');
+          
+          // Create the full path as a document reference to avoid collection path issues
+          const studentDoc = doc(db, `students/${sanitizedDepartment}/${sanitizedYear}/${sanitizedSection}/${studentId}`);
+          
+          // Debug logging to verify the path structure
+          console.log(`Creating document at path: students/${sanitizedDepartment}/${sanitizedYear}/${sanitizedSection}/${studentId}`);
+          
           currentBatch.set(studentDoc, finalStudentData);
 
           // Also store in general students collection for easy querying
@@ -1213,6 +1229,8 @@ const BulkImport = ({ onClose, onSuccess }) => {
           }
                  } catch (error) {
            console.error(`Error processing row ${i + 1}:`, error);
+           console.error(`Row data:`, row);
+           console.error(`Processed student data:`, studentData);
            
            // Handle errors with better user feedback
            const errorInfo = await FirebaseErrorHandler.handleError(error, `BulkImport-Row${i + 1}`);
@@ -1223,6 +1241,11 @@ const BulkImport = ({ onClose, onSuccess }) => {
              setUploadProgress(0);
              FirebaseErrorHandler.showUserFriendlyError(errorInfo);
              return;
+           }
+           
+           // Log specific error details for debugging
+           if (error.message?.includes('collection reference')) {
+             console.error(`Collection reference error for department: ${studentData.department}`);
            }
            
            errorCount++;
@@ -1529,7 +1552,7 @@ const BulkImport = ({ onClose, onSuccess }) => {
           <div className="bg-white border border-blue-200 rounded-lg p-3">
             <p className="text-blue-700 text-sm font-medium mb-1">Storage Path:</p>
             <code className="bg-gray-100 px-3 py-2 rounded-lg text-sm font-mono text-gray-800 block">
-              students/{sanitizeDepartmentForPath(selectedDepartment || 'Department')}/{selectedYear || 'Year'}/{selectedSection || 'Section'}/[studentId]
+              students/{sanitizeDepartmentForPath(selectedDepartment || 'Department')}/{(selectedYear || 'Year').toString().replace(/[^a-zA-Z0-9]/g, '')}/{(selectedSection || 'Section').toString().replace(/[^a-zA-Z0-9]/g, '')}/[studentId]
             </code>
           </div>
           <p className="text-blue-700 text-sm">
