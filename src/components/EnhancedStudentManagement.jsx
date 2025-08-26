@@ -3,16 +3,19 @@ import { useNavigate } from "react-router-dom";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import "./StudentManagement.css";
 import {
-  faUserGraduate, faPlus, faUpload, faIdCard, faMoneyBillWave,
-  faGraduationCap, faHome, faBus, faEnvelope, faFileAlt,
-  faChartBar, faCog, faDownload, faSearch, faFilter,
-  faEye, faEdit, faTrash, faCheckCircle, faExclamationTriangle,
-  faUsers, faBell, faDatabase, faShieldAlt, faPalette, faTimes,
-  faChevronDown, faChevronUp, faBolt, faArrowRight, faComments
+  faUserGraduate, faPlus, faUpload, faIdCard, faEnvelope, faFileAlt,
+  faChartBar, faCog, faDownload, faSearch, faFilter, faEye, faEdit, 
+  faTrash, faCheckCircle, faExclamationTriangle, faUsers, faBell, 
+  faDatabase, faShieldAlt, faPalette, faTimes, faChevronDown, 
+  faChevronUp, faBolt, faArrowRight, faKey, faUserPlus, faGraduationCap,
+  faCalendarAlt, faPhone, faMapMarkerAlt, faCreditCard, faCertificate,
+  faClipboardList, faUserCheck, faEnvelopeOpen, faLock, faUnlock,
+  faRandom, faQrcode, faPrint, faShare, faHistory, faChartLine,
+  faUserFriends, faBookOpen, faCalendarCheck, faClipboardCheck
 } from "@fortawesome/free-solid-svg-icons";
 import { db } from "../firebase";
-import { collection, collectionGroup, doc, getDocs, updateDoc, deleteDoc, query, where, orderBy, limit, onSnapshot } from "firebase/firestore";
-import { getAuth } from "firebase/auth";
+import { collection, doc, getDocs, updateDoc, deleteDoc, query, where, orderBy, limit, onSnapshot, addDoc } from "firebase/firestore";
+import { getAuth, createUserWithEmailAndPassword } from "firebase/auth";
 import BulkImport from "./BulkImport";
 
 // Import new components
@@ -24,41 +27,40 @@ import AttendanceTracker from "./StudentManagement/AttendanceTracker";
 import DocumentManager from "./StudentManagement/DocumentManager";
 import CommunicationHub from "./StudentManagement/CommunicationHub";
 import StudentPortal from "./StudentManagement/StudentPortal";
-import StudentFeedback from "./StudentManagement/StudentFeedback";
-import EnhancedIDCardGenerator from "./StudentManagement/EnhancedIDCardGenerator";
 import Notifications from "./Notifications";
 import Reports from "./Reports";
 import SystemSettings from "./SystemSettings";
 import ExportData from "./ExportData";
 
-const StudentManagement = () => {
+const EnhancedStudentManagement = () => {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState(() => localStorage.getItem("sm.activeTab") || "overview");
+  const [activeTab, setActiveTab] = useState(() => localStorage.getItem("esm.activeTab") || "overview");
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [showBulkImport, setShowBulkImport] = useState(false);
-
-  const [showIDCardGenerator, setShowIDCardGenerator] = useState(false);
-  const [searchTerm, setSearchTerm] = useState(() => localStorage.getItem("sm.searchTerm") || "");
-  const [debouncedSearch, setDebouncedSearch] = useState(() => localStorage.getItem("sm.searchTerm") || "");
-  const [filterYear, setFilterYear] = useState(() => localStorage.getItem("sm.filterYear") || "");
-  const [filterDepartment, setFilterDepartment] = useState(() => localStorage.getItem("sm.filterDepartment") || "");
-  const [sortBy, setSortBy] = useState(() => localStorage.getItem("sm.sortBy") || "name");
-  const [sortDir, setSortDir] = useState(() => localStorage.getItem("sm.sortDir") || "asc");
+  const [showRollNumberGenerator, setShowRollNumberGenerator] = useState(false);
+  const [showLoginManager, setShowLoginManager] = useState(false);
+  const [showEmailManager, setShowEmailManager] = useState(false);
+  const [searchTerm, setSearchTerm] = useState(() => localStorage.getItem("esm.searchTerm") || "");
+  const [debouncedSearch, setDebouncedSearch] = useState(() => localStorage.getItem("esm.searchTerm") || "");
+  const [filterYear, setFilterYear] = useState(() => localStorage.getItem("esm.filterYear") || "");
+  const [filterDepartment, setFilterDepartment] = useState(() => localStorage.getItem("esm.filterDepartment") || "");
+  const [sortBy, setSortBy] = useState(() => localStorage.getItem("esm.sortBy") || "name");
+  const [sortDir, setSortDir] = useState(() => localStorage.getItem("esm.sortDir") || "asc");
   const [currentPage, setCurrentPage] = useState(1);
-  const pageSize = 6; // Reduced for better fit
+  const pageSize = 6;
   const [showFilters, setShowFilters] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
 
-  // Fetch students from all nested collections named "students"
+  // Fetch students
   useEffect(() => {
     const unsubscribe = onSnapshot(
-      collectionGroup(db, "students"),
+      collection(db, "students"),
       (snapshot) => {
         const studentsData = [];
-        snapshot.forEach((docSnap) => {
-          studentsData.push({ id: docSnap.id, ...docSnap.data() });
+        snapshot.forEach((doc) => {
+          studentsData.push({ id: doc.id, ...doc.data() });
         });
         setStudents(studentsData);
         setLoading(false);
@@ -74,7 +76,7 @@ const StudentManagement = () => {
     return () => unsubscribe();
   }, []);
 
-  // Calculate statistics
+  // Calculate enhanced statistics
   const stats = {
     totalStudents: students.length,
     activeStudents: students.filter(s => s.status === 'active').length,
@@ -84,9 +86,12 @@ const StudentManagement = () => {
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       return admissionDate && new Date(admissionDate) > thirtyDaysAgo;
     }).length,
-    pendingFees: students.filter(s => (s.totalFee || 0) > (s.paidFee || 0)).length,
-    hostelStudents: students.filter(s => s.hostelStatus === 'allocated').length,
-    transportStudents: students.filter(s => s.transportStatus === 'allocated').length
+    studentsWithLogin: students.filter(s => s.hasLoginCredentials).length,
+    studentsWithEmail: students.filter(s => s.email && s.emailVerified).length,
+    studentsWithDocuments: students.filter(s => s.documents && s.documents.length > 0).length,
+    attendanceRate: students.length > 0 ? 
+      Math.round((students.filter(s => s.attendanceRate > 75).length / students.length) * 100) : 0,
+    pendingVerifications: students.filter(s => s.verificationStatus === 'pending').length
   };
 
   // Filter students
@@ -110,6 +115,7 @@ const StudentManagement = () => {
         case "year": return (s.year || '').toString().toLowerCase();
         case "department": return (s.department || '').toLowerCase();
         case "status": return (s.status || '').toLowerCase();
+        case "admissionDate": return s.admissionDate || '';
         default: return (s.name || '').toLowerCase();
       }
     };
@@ -125,7 +131,6 @@ const StudentManagement = () => {
   const paginatedStudents = sortedStudents.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   useEffect(() => {
-    // Reset to first page when filters/search/sort change
     setCurrentPage(1);
   }, [debouncedSearch, filterYear, filterDepartment, sortBy, sortDir]);
 
@@ -137,7 +142,7 @@ const StudentManagement = () => {
     setSortDir("asc");
   };
 
-  // Quick action handlers
+  // Enhanced quick action handlers
   const handleQuickAction = (action) => {
     switch (action) {
       case 'addStudent':
@@ -146,14 +151,17 @@ const StudentManagement = () => {
       case 'bulkImport':
         setShowBulkImport(true);
         break;
-      case 'rollNumbers':
-        setActiveTab('roll-numbers');
+      case 'rollNumberGenerator':
+        setShowRollNumberGenerator(true);
         break;
-      case 'credentials':
-        setActiveTab('credentials');
+      case 'loginManager':
+        setShowLoginManager(true);
         break;
       case 'emailManager':
-        setActiveTab('email-manager');
+        setShowEmailManager(true);
+        break;
+      case 'idCards':
+        setActiveTab('id-cards');
         break;
       case 'analytics':
         setActiveTab('analytics');
@@ -168,13 +176,7 @@ const StudentManagement = () => {
         setActiveTab('communication');
         break;
       case 'portal':
-        setActiveTab('portal');
-        break;
-      case 'feedback':
-        setActiveTab('feedback');
-        break;
-      case 'idCards':
-        setShowIDCardGenerator(true);
+        setActiveTab('student-portal');
         break;
       case 'notifications':
         setActiveTab('notifications');
@@ -193,13 +195,13 @@ const StudentManagement = () => {
     }
   };
 
-  // Quick actions data - updated with new features
+  // Enhanced quick actions data
   const quickActions = [
     {
       id: 'addStudent',
       title: 'Add Student',
       description: 'Register a new student',
-      icon: faPlus,
+      icon: faUserPlus,
       color: 'bg-blue-500',
       action: () => handleQuickAction('addStudent')
     },
@@ -212,20 +214,20 @@ const StudentManagement = () => {
       action: () => handleQuickAction('bulkImport')
     },
     {
-      id: 'rollNumbers',
-      title: 'Roll Numbers',
+      id: 'rollNumberGenerator',
+      title: 'Roll Number Generator',
       description: 'Generate roll numbers',
-      icon: faIdCard,
+      icon: faRandom,
       color: 'bg-purple-500',
-      action: () => handleQuickAction('rollNumbers')
+      action: () => handleQuickAction('rollNumberGenerator')
     },
     {
-      id: 'credentials',
-      title: 'Login Credentials',
-      description: 'Manage student logins',
-      icon: faShieldAlt,
+      id: 'loginManager',
+      title: 'Login Manager',
+      description: 'Manage login credentials',
+      icon: faKey,
       color: 'bg-indigo-500',
-      action: () => handleQuickAction('credentials')
+      action: () => handleQuickAction('loginManager')
     },
     {
       id: 'emailManager',
@@ -236,55 +238,86 @@ const StudentManagement = () => {
       action: () => handleQuickAction('emailManager')
     },
     {
+      id: 'idCards',
+      title: 'ID Card Generator',
+      description: 'Generate student ID cards',
+      icon: faIdCard,
+      color: 'bg-pink-500',
+      action: () => handleQuickAction('idCards')
+    },
+    {
       id: 'analytics',
       title: 'Analytics',
-      description: 'Student data insights',
-      icon: faChartBar,
-      color: 'bg-pink-500',
+      description: 'Student analytics & insights',
+      icon: faChartLine,
+      color: 'bg-orange-500',
       action: () => handleQuickAction('analytics')
     },
     {
       id: 'attendance',
       title: 'Attendance',
-      description: 'Track attendance',
-      icon: faCheckCircle,
-      color: 'bg-orange-500',
+      description: 'Track student attendance',
+      icon: faCalendarCheck,
+      color: 'bg-teal-500',
       action: () => handleQuickAction('attendance')
     },
     {
       id: 'documents',
       title: 'Documents',
-      description: 'Manage documents',
+      description: 'Manage student documents',
       icon: faFileAlt,
       color: 'bg-red-500',
       action: () => handleQuickAction('documents')
+    },
+    {
+      id: 'communication',
+      title: 'Communication',
+      description: 'Student communication hub',
+      icon: faEnvelopeOpen,
+      color: 'bg-cyan-500',
+      action: () => handleQuickAction('communication')
+    },
+    {
+      id: 'portal',
+      title: 'Student Portal',
+      description: 'Student portal management',
+      icon: faUserCheck,
+      color: 'bg-emerald-500',
+      action: () => handleQuickAction('portal')
+    },
+    {
+      id: 'notifications',
+      title: 'Notifications',
+      description: 'Send bulk notifications',
+      icon: faBell,
+      color: 'bg-violet-500',
+      action: () => handleQuickAction('notifications')
     }
   ];
 
-  // Navigation tabs - updated with new features
+  // Enhanced navigation tabs
   const tabs = [
     { id: 'overview', name: 'Overview', icon: faEye },
-    { id: 'roll-numbers', name: 'Roll Numbers', icon: faIdCard },
-    { id: 'credentials', name: 'Login Credentials', icon: faShieldAlt },
-    { id: 'email-manager', name: 'Email Manager', icon: faEnvelope },
-    { id: 'analytics', name: 'Analytics', icon: faChartBar },
-    { id: 'attendance', name: 'Attendance', icon: faCheckCircle },
-    { id: 'documents', name: 'Documents', icon: faFileAlt },
-    { id: 'communication', name: 'Communication', icon: faBell },
-    { id: 'portal', name: 'Student Portal', icon: faUserGraduate },
-    { id: 'feedback', name: 'Feedback', icon: faComments },
+    { id: 'roll-number-generator', name: 'Roll Number Generator', icon: faRandom },
+    { id: 'login-credentials', name: 'Login Credentials', icon: faKey },
+    { id: 'email-management', name: 'Email Management', icon: faEnvelope },
     { id: 'id-cards', name: 'ID Cards', icon: faIdCard },
+    { id: 'analytics', name: 'Analytics', icon: faChartLine },
+    { id: 'attendance', name: 'Attendance', icon: faCalendarCheck },
+    { id: 'documents', name: 'Documents', icon: faFileAlt },
+    { id: 'communication', name: 'Communication', icon: faEnvelopeOpen },
+    { id: 'student-portal', name: 'Student Portal', icon: faUserCheck },
     { id: 'notifications', name: 'Notifications', icon: faBell },
     { id: 'reports', name: 'Reports', icon: faChartBar }
   ];
 
   // Persist preferences
-  useEffect(() => { localStorage.setItem("sm.activeTab", activeTab); }, [activeTab]);
-  useEffect(() => { localStorage.setItem("sm.searchTerm", searchTerm); }, [searchTerm]);
-  useEffect(() => { localStorage.setItem("sm.filterYear", filterYear); }, [filterYear]);
-  useEffect(() => { localStorage.setItem("sm.filterDepartment", filterDepartment); }, [filterDepartment]);
-  useEffect(() => { localStorage.setItem("sm.sortBy", sortBy); }, [sortBy]);
-  useEffect(() => { localStorage.setItem("sm.sortDir", sortDir); }, [sortDir]);
+  useEffect(() => { localStorage.setItem("esm.activeTab", activeTab); }, [activeTab]);
+  useEffect(() => { localStorage.setItem("esm.searchTerm", searchTerm); }, [searchTerm]);
+  useEffect(() => { localStorage.setItem("esm.filterYear", filterYear); }, [filterYear]);
+  useEffect(() => { localStorage.setItem("esm.filterDepartment", filterDepartment); }, [filterDepartment]);
+  useEffect(() => { localStorage.setItem("esm.sortBy", sortBy); }, [sortBy]);
+  useEffect(() => { localStorage.setItem("esm.sortDir", sortDir); }, [sortDir]);
 
   // Debounce search input
   useEffect(() => {
@@ -298,7 +331,7 @@ const StudentManagement = () => {
       case 'overview':
         return (
           <div className="h-full flex flex-col space-y-8">
-            {/* Compact Quick Actions */}
+            {/* Enhanced Quick Actions */}
             <div className="bg-white rounded-lg shadow-sm p-6 flex-shrink-0">
               <div className="flex items-center space-x-3 mb-6">
                 <div className="bg-gradient-to-r from-blue-500 to-purple-600 p-2 rounded-lg">
@@ -325,7 +358,7 @@ const StudentManagement = () => {
               </div>
             </div>
 
-            {/* Compact Statistics */}
+            {/* Enhanced Statistics */}
             <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-5 flex-shrink-0 stats-grid">
               <div className="bg-gradient-to-br from-blue-600 via-blue-500 to-blue-400 rounded-lg shadow-md text-white relative stats-card">
                 <div className="flex flex-col justify-between h-full">
@@ -358,49 +391,49 @@ const StudentManagement = () => {
                     <p className="text-3xl font-bold stats-value">{stats.newAdmissions}</p>
                   </div>
                   <div className="bg-white/20 p-3 rounded-full backdrop-blur-sm w-fit stats-icon">
-                    <FontAwesomeIcon icon={faPlus} className="text-xl" />
+                    <FontAwesomeIcon icon={faUserPlus} className="text-xl" />
                   </div>
                 </div>
               </div>
               
-              <div className="bg-gradient-to-br from-rose-600 via-rose-500 to-rose-400 rounded-lg shadow-md text-white relative stats-card">
+              <div className="bg-gradient-to-br from-indigo-600 via-indigo-500 to-indigo-400 rounded-lg shadow-md text-white relative stats-card">
                 <div className="flex flex-col justify-between h-full">
                   <div>
-                    <p className="text-rose-100 text-xs font-medium stats-label">Pending Fees</p>
-                    <p className="text-3xl font-bold stats-value">{stats.pendingFees}</p>
+                    <p className="text-indigo-100 text-xs font-medium stats-label">With Login</p>
+                    <p className="text-3xl font-bold stats-value">{stats.studentsWithLogin}</p>
                   </div>
                   <div className="bg-white/20 p-3 rounded-full backdrop-blur-sm w-fit stats-icon">
-                    <FontAwesomeIcon icon={faMoneyBillWave} className="text-xl" />
+                    <FontAwesomeIcon icon={faKey} className="text-xl" />
                   </div>
                 </div>
               </div>
               
-              <div className="bg-gradient-to-br from-violet-600 via-violet-500 to-violet-400 rounded-lg shadow-md text-white relative stats-card">
+              <div className="bg-gradient-to-br from-yellow-600 via-yellow-500 to-yellow-400 rounded-lg shadow-md text-white relative stats-card">
                 <div className="flex flex-col justify-between h-full">
                   <div>
-                    <p className="text-violet-100 text-xs font-medium stats-label">Hostel Students</p>
-                    <p className="text-3xl font-bold stats-value">{stats.hostelStudents}</p>
+                    <p className="text-yellow-100 text-xs font-medium stats-label">Email Verified</p>
+                    <p className="text-3xl font-bold stats-value">{stats.studentsWithEmail}</p>
                   </div>
                   <div className="bg-white/20 p-3 rounded-full backdrop-blur-sm w-fit stats-icon">
-                    <FontAwesomeIcon icon={faHome} className="text-xl" />
+                    <FontAwesomeIcon icon={faEnvelope} className="text-xl" />
                   </div>
                 </div>
               </div>
               
-              <div className="bg-gradient-to-br from-orange-600 via-orange-500 to-orange-400 rounded-lg shadow-md text-white relative stats-card">
+              <div className="bg-gradient-to-br from-teal-600 via-teal-500 to-teal-400 rounded-lg shadow-md text-white relative stats-card">
                 <div className="flex flex-col justify-between h-full">
                   <div>
-                    <p className="text-orange-100 text-xs font-medium stats-label">Transport Students</p>
-                    <p className="text-3xl font-bold stats-value">{stats.transportStudents}</p>
+                    <p className="text-teal-100 text-xs font-medium stats-label">Attendance Rate</p>
+                    <p className="text-3xl font-bold stats-value">{stats.attendanceRate}%</p>
                   </div>
                   <div className="bg-white/20 p-3 rounded-full backdrop-blur-sm w-fit stats-icon">
-                    <FontAwesomeIcon icon={faBus} className="text-xl" />
+                    <FontAwesomeIcon icon={faCalendarCheck} className="text-xl" />
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Compact Recent Students */}
+            {/* Enhanced Recent Students */}
             <div className="bg-white rounded-lg shadow-sm overflow-hidden flex-1 min-h-0">
               <div className="bg-gradient-to-r from-gray-50 to-gray-100 px-4 py-3 border-b border-gray-200">
                 <div className="flex items-center justify-between">
@@ -474,95 +507,7 @@ const StudentManagement = () => {
                       </tbody>
                     </table>
 
-                    {/* Tablet table */}
-                    <table className="w-full divide-y divide-gray-200 hidden sm:table lg:hidden h-full">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="px-1.5 py-1.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student</th>
-                          <th className="px-1.5 py-1.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Roll No</th>
-                          <th className="px-1.5 py-1.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
-                          <th className="px-1.5 py-1.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                          <th className="px-1.5 py-1.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
-                        {paginatedStudents.map((student) => (
-                          <tr key={student.id} className="hover:bg-gray-50">
-                            <td className="px-1.5 py-1.5 whitespace-nowrap">
-                              <div className="flex items-center">
-                                <div className="flex-shrink-0 h-5 w-5">
-                                  <div className="h-5 w-5 rounded-full bg-gray-300 flex items-center justify-center">
-                                    <FontAwesomeIcon icon={faUserGraduate} className="text-gray-600 text-xs" />
-                                  </div>
-                                </div>
-                                <div className="ml-1.5">
-                                  <div className="text-xs font-medium text-gray-900 truncate max-w-[80px]">
-                                    {student.name || `${student.firstName || ''} ${student.lastName || ''}`.trim()}
-                                  </div>
-                                  <div className="text-xs text-gray-500 truncate max-w-[80px]">{student.email}</div>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="px-1.5 py-1.5 whitespace-nowrap text-xs text-gray-900">{student.rollNo}</td>
-                            <td className="px-1.5 py-1.5 whitespace-nowrap text-xs text-gray-900 truncate max-w-[60px]">{student.department}</td>
-                            <td className="px-1.5 py-1.5 whitespace-nowrap">
-                              <span className={`inline-flex px-1 py-0.5 text-xs font-semibold rounded-full ${
-                                student.status === 'active' ? 'bg-green-100 text-green-800' :
-                                student.status === 'inactive' ? 'bg-red-100 text-red-800' :
-                                'bg-gray-100 text-gray-800'
-                              }`}>
-                                {student.status}
-                              </span>
-                            </td>
-                            <td className="px-1.5 py-1.5 whitespace-nowrap text-xs font-medium">
-                              <div className="flex space-x-0.5">
-                                <button className="text-blue-600 hover:text-blue-900 p-0.5"><FontAwesomeIcon icon={faEye} className="text-xs" /></button>
-                                <button className="text-green-600 hover:text-green-900 p-0.5"><FontAwesomeIcon icon={faEdit} className="text-xs" /></button>
-                                <button className="text-red-600 hover:text-red-900 p-0.5"><FontAwesomeIcon icon={faTrash} className="text-xs" /></button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-
-                    {/* Mobile list */}
-                    <div className="sm:hidden divide-y divide-gray-200 h-full overflow-y-auto">
-                      {paginatedStudents.map((student) => (
-                        <div key={student.id} className="p-2 flex items-start gap-2">
-                          <div className="h-6 w-6 rounded-full bg-gray-300 flex items-center justify-center flex-shrink-0">
-                            <FontAwesomeIcon icon={faUserGraduate} className="text-gray-600 text-xs" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between mb-1">
-                              <p className="font-medium text-gray-900 text-xs truncate">
-                                {student.name || `${student.firstName || ''} ${student.lastName || ''}`.trim()}
-                              </p>
-                              <span className={`ml-1 inline-flex px-1 py-0.5 text-xs font-semibold rounded-full flex-shrink-0 ${
-                                student.status === 'active' ? 'bg-green-100 text-green-800' :
-                                student.status === 'inactive' ? 'bg-red-100 text-red-800' :
-                                'bg-gray-100 text-gray-800'
-                              }`}>
-                                {student.status}
-                              </span>
-                            </div>
-                            <p className="text-xs text-gray-600 mb-1">
-                              <span className="font-medium">Roll No:</span> {student.rollNo} • 
-                              <span className="font-medium ml-1">Dept:</span> {student.department} • 
-                              <span className="font-medium ml-1">Year:</span> {student.year}
-                            </p>
-                            <p className="text-xs text-gray-500 truncate mb-1">{student.email}</p>
-                            <div className="flex gap-1 text-blue-600">
-                              <button className="text-xs bg-blue-50 px-1.5 py-0.5 rounded">View</button>
-                              <button className="text-xs bg-green-50 px-1.5 py-0.5 rounded text-green-600">Edit</button>
-                              <button className="text-xs bg-red-50 px-1.5 py-0.5 rounded text-red-600">Delete</button>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Compact Pagination */}
+                    {/* Pagination */}
                     <div className="px-3 py-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-t border-gray-200">
                       <div className="flex items-center justify-between sm:justify-start">
                         <span className="text-sm text-gray-600">
@@ -619,14 +564,17 @@ const StudentManagement = () => {
           </div>
         );
       
-      case 'roll-numbers':
+      case 'roll-number-generator':
         return <RollNumberGenerator students={students} />;
       
-      case 'credentials':
+      case 'login-credentials':
         return <LoginCredentialsManager students={students} />;
       
-      case 'email-manager':
+      case 'email-management':
         return <EmailManager students={students} />;
+      
+      case 'id-cards':
+        return <div>ID Card Generator Component</div>;
       
       case 'analytics':
         return <StudentAnalytics students={students} />;
@@ -640,14 +588,8 @@ const StudentManagement = () => {
       case 'communication':
         return <CommunicationHub students={students} />;
       
-      case 'portal':
+      case 'student-portal':
         return <StudentPortal students={students} />;
-      
-      case 'feedback':
-        return <StudentFeedback students={students} />;
-      
-      case 'id-cards':
-        return <EnhancedIDCardGenerator />;
       
       case 'notifications':
         return <Notifications />;
@@ -689,8 +631,8 @@ const StudentManagement = () => {
   }
 
   return (
-    <div className="min-h-screen flex flex-col overflow-y-auto student-management-container">
-      {/* Compact Header */}
+    <div className="h-screen flex flex-col overflow-hidden student-management-container">
+      {/* Enhanced Header */}
       <div className="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-lg shadow-sm p-4 text-white flex-shrink-0">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex items-center space-x-3">
@@ -698,8 +640,8 @@ const StudentManagement = () => {
               <FontAwesomeIcon icon={faUserGraduate} className="text-xl sm:text-2xl" />
             </div>
             <div>
-              <h2 className="text-xl sm:text-2xl font-bold">Student Management</h2>
-              <p className="text-blue-100 text-xs sm:text-sm">Comprehensive student management system</p>
+              <h2 className="text-xl sm:text-2xl font-bold">Enhanced Student Management</h2>
+              <p className="text-blue-100 text-xs sm:text-sm">Advanced student management with roll numbers, credentials & analytics</p>
               <div className="flex items-center space-x-3 mt-1 text-xs">
                 <span className="flex items-center space-x-1">
                   <FontAwesomeIcon icon={faUsers} className="text-blue-200" />
@@ -708,6 +650,10 @@ const StudentManagement = () => {
                 <span className="flex items-center space-x-1">
                   <FontAwesomeIcon icon={faCheckCircle} className="text-green-300" />
                   <span>{stats.activeStudents} Active</span>
+                </span>
+                <span className="flex items-center space-x-1">
+                  <FontAwesomeIcon icon={faKey} className="text-yellow-300" />
+                  <span>{stats.studentsWithLogin} With Login</span>
                 </span>
               </div>
             </div>
@@ -731,7 +677,7 @@ const StudentManagement = () => {
         </div>
       </div>
 
-      {/* Compact Search and Filters */}
+      {/* Search and Filters */}
       <div className="bg-white rounded-lg shadow-sm p-4 flex-shrink-0">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center space-x-2">
@@ -805,6 +751,7 @@ const StudentManagement = () => {
                 <option value="year">Year</option>
                 <option value="department">Department</option>
                 <option value="status">Status</option>
+                <option value="admissionDate">Admission Date</option>
               </select>
               <select
                 value={sortDir}
@@ -846,7 +793,7 @@ const StudentManagement = () => {
         </div>
       </div>
 
-      {/* Compact Navigation Tabs */}
+      {/* Navigation Tabs */}
       <div className="bg-white rounded-lg shadow-sm overflow-hidden flex-shrink-0">
         <div className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
           <nav className="flex overflow-x-auto scrollbar-hide nav-tabs-container px-2">
@@ -869,7 +816,7 @@ const StudentManagement = () => {
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 overflow-y-auto p-3">
+      <div className="flex-1 overflow-hidden p-3">
         {renderTabContent()}
       </div>
 
@@ -902,22 +849,58 @@ const StudentManagement = () => {
         </div>
       )}
 
-
-
-      {showIDCardGenerator && (
+      {showRollNumberGenerator && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-y-auto student-modal">
-            <div className="p-4 sm:p-6 student-modal-content">
+          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto student-modal">
+            <div className="p-4 sm:p-6">
               <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">ID Card Generator</h3>
+                <h3 className="text-lg font-semibold text-gray-900">Roll Number Generator</h3>
                 <button
-                  onClick={() => setShowIDCardGenerator(false)}
+                  onClick={() => setShowRollNumberGenerator(false)}
                   className="text-gray-400 hover:text-gray-600"
                 >
                   <FontAwesomeIcon icon={faTimes} />
                 </button>
               </div>
-              <EnhancedIDCardGenerator onClose={() => setShowIDCardGenerator(false)} />
+              <RollNumberGenerator students={students} onClose={() => setShowRollNumberGenerator(false)} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showLoginManager && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto student-modal">
+            <div className="p-4 sm:p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">Login Credentials Manager</h3>
+                <button
+                  onClick={() => setShowLoginManager(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <FontAwesomeIcon icon={faTimes} />
+                </button>
+              </div>
+              <LoginCredentialsManager students={students} onClose={() => setShowLoginManager(false)} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showEmailManager && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto student-modal">
+            <div className="p-4 sm:p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">Email Manager</h3>
+                <button
+                  onClick={() => setShowEmailManager(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <FontAwesomeIcon icon={faTimes} />
+                </button>
+              </div>
+              <EmailManager students={students} onClose={() => setShowEmailManager(false)} />
             </div>
           </div>
         </div>
@@ -926,4 +909,4 @@ const StudentManagement = () => {
   );
 };
 
-export default StudentManagement;
+export default EnhancedStudentManagement;

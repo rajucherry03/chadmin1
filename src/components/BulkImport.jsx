@@ -8,6 +8,7 @@ const BulkImport = ({ onClose, onSuccess }) => {
   const [file, setFile] = useState(null);
   const [data, setData] = useState([]);
   const [groupedData, setGroupedData] = useState({});
+  const [headers, setHeaders] = useState([]);
   const [mapping, setMapping] = useState({});
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -17,12 +18,10 @@ const BulkImport = ({ onClose, onSuccess }) => {
   const [sheetInfo, setSheetInfo] = useState([]);
   
   // New state for year, section, department selection
-  const [selectedYear, setSelectedYear] = useState("");
-  const [selectedSection, setSelectedSection] = useState("");
   const [selectedDepartment, setSelectedDepartment] = useState("");
   
   const availableFields = [
-    { name: "admissionNumber", label: "Admission Number", type: "text", required: true },
+    { name: "rollNo", label: "Roll No", type: "text", required: true },
     { name: "name", label: "Full Name", type: "text", required: true },
     { name: "gender", label: "Gender", type: "select", required: false, options: ["Male", "Female", "Other"] },
     { name: "dateOfBirth", label: "Date of Birth", type: "date", required: false },
@@ -184,21 +183,29 @@ const BulkImport = ({ onClose, onSuccess }) => {
     
     const str = value.toString().trim();
     
-    // Handle patterns like "III A", "II B", "I C", etc. (Roman numerals + single letter)
-    const yearSectionMatch = str.match(/^(I{1,3}|IV|V{1,3}|IX|X{1,3}|XI|XII)\s*([A-Z])$/i);
-    if (yearSectionMatch) {
+    // Handle patterns like "III A", "II-B", "I C", or "IIB" (Roman numerals + single letter)
+    const flexibleMatch = str.match(/^(I{1,3}|IV|V{1,3}|IX|X{1,3}|XI|XII)[\s-]*([A-Z])$/i);
+    if (flexibleMatch) {
       return {
-        year: yearSectionMatch[1].toUpperCase(),
-        section: yearSectionMatch[2].toUpperCase()
+        year: flexibleMatch[1].toUpperCase(),
+        section: flexibleMatch[2].toUpperCase()
       };
     }
-    
-    // Handle patterns like "IIIA", "IIB", etc. (Roman numerals + single letter, no space)
-    const combinedMatch = str.match(/^(I{1,3}|IV|V{1,3}|IX|X{1,3}|XI|XII)([A-Z])$/i);
-    if (combinedMatch) {
+
+    // Handle Section-Year format like "A-II", "B-III", "C-IV"
+    const sectionFirstRoman = str.match(/^([A-Z])[\s-]*(I{1,3}|IV|V{1,3}|IX|X{1,3}|XI|XII)$/i);
+    if (sectionFirstRoman) {
       return {
-        year: combinedMatch[1].toUpperCase(),
-        section: combinedMatch[2].toUpperCase()
+        year: sectionFirstRoman[2].toUpperCase(),
+        section: sectionFirstRoman[1].toUpperCase()
+      };
+    }
+    // Handle Section-Year numeric like "A-2", "B 3"
+    const sectionFirstNumeric = str.match(/^([A-Z])[\s-]*(\d{1,2})$/i);
+    if (sectionFirstNumeric) {
+      return {
+        year: sectionFirstNumeric[2],
+        section: sectionFirstNumeric[1].toUpperCase()
       };
     }
     
@@ -258,15 +265,90 @@ const BulkImport = ({ onClose, onSuccess }) => {
     return { year: '', section: '' };
   };
 
+  // Convert any common year representation to a canonical Roman form (I, II, III, IV, ...)
+  const toRomanYear = (value) => {
+    if (!value) return '';
+    const token = value.toString().trim().toUpperCase();
+    // Already roman
+    if (/^(I{1,3}|IV|V{1,3}|IX|X{1,3}|XI|XII)$/.test(token)) return token;
+    // Plain numeric
+    const plainNumericMap = {
+      '1': 'I', '2': 'II', '3': 'III', '4': 'IV', '5': 'V', '6': 'VI',
+      '7': 'VII', '8': 'VIII', '9': 'IX', '10': 'X', '11': 'XI', '12': 'XII'
+    };
+    if (plainNumericMap[token]) return plainNumericMap[token];
+    const numericMap = {
+      '1ST YEAR': 'I', '2ND YEAR': 'II', '3RD YEAR': 'III', '4TH YEAR': 'IV', '5TH YEAR': 'V', '6TH YEAR': 'VI',
+      '7TH YEAR': 'VII', '8TH YEAR': 'VIII', '9TH YEAR': 'IX', '10TH YEAR': 'X', '11TH YEAR': 'XI', '12TH YEAR': 'XII'
+    };
+    if (numericMap[token]) return numericMap[token];
+    const writtenMap = {
+      'FIRST YEAR': 'I', 'SECOND YEAR': 'II', 'THIRD YEAR': 'III', 'FOURTH YEAR': 'IV', 'FIFTH YEAR': 'V', 'SIXTH YEAR': 'VI',
+      'SEVENTH YEAR': 'VII', 'EIGHTH YEAR': 'VIII', 'NINTH YEAR': 'IX', 'TENTH YEAR': 'X', 'ELEVENTH YEAR': 'XI', 'TWELFTH YEAR': 'XII'
+    };
+    if (writtenMap[token]) return writtenMap[token];
+    return token; // fallback unchanged
+  };
+
+  // Detect year and section column indices with smart heuristics
+  const detectYearAndSectionIndices = (rows, headers) => {
+    if (!Array.isArray(headers) || headers.length === 0) {
+      return { yearIndex: -1, sectionIndex: -1 };
+    }
+
+    // Normalize headers once
+    const lowered = headers.map(h => (h ? h.toString().toLowerCase().trim() : ''));
+
+    // 1) Exact matches take priority
+    let yearIndex = lowered.findIndex(h => h === 'year');
+    let sectionIndex = lowered.findIndex(h => h === 'section');
+
+    // 2) Heuristic for 'class' column: often holds section letters (A/B/C)
+    const classIdx = lowered.findIndex(h => h === 'class');
+    if (classIdx !== -1 && sectionIndex === -1) {
+      // Sample values from this column
+      const samples = (rows || []).slice(0, 25).map(r => (Array.isArray(r) ? r[classIdx] : undefined)).filter(Boolean);
+      const singleLetters = samples.filter(v => /^[A-Za-z]$/.test(v?.toString().trim()))
+      .length;
+      const romanLike = samples.filter(v => /^(I{1,3}|IV|V{1,3}|VI{0,3}|VII{0,2}|VIII|IX|X{1,3}|XI|XII)$/i.test(v?.toString().trim()))
+      .length;
+      if (singleLetters > romanLike) {
+        sectionIndex = classIdx;
+      } else if (yearIndex === -1) {
+        yearIndex = classIdx;
+      }
+    }
+
+    // 3) Fallbacks using includes if still not found
+    if (yearIndex === -1) {
+      yearIndex = lowered.findIndex(h => h.includes('year'));
+    }
+    if (sectionIndex === -1) {
+      sectionIndex = lowered.findIndex(h => h.includes('section') || h === 'div' || h.includes('division'));
+    }
+
+    // 4) If yearIndex accidentally points to a section-like column, fix it
+    if (yearIndex !== -1 && sectionIndex === -1) {
+      const samples = (rows || []).slice(0, 25).map(r => (Array.isArray(r) ? r[yearIndex] : undefined)).filter(Boolean);
+      const mostlyLetters = samples.filter(v => /^[A-Za-z]$/.test(v?.toString().trim())).length;
+      const mostlyRoman = samples.filter(v => /^(I{1,3}|IV|V{1,3}|VI{0,3}|VII{0,2}|VIII|IX|X{1,3}|XI|XII)$/i.test(v?.toString().trim())).length;
+      if (mostlyLetters > mostlyRoman) {
+        sectionIndex = yearIndex; // treat it as section
+        // Try to locate a separate year column again with stronger priority to exact 'year'
+        const exactYearIdx = lowered.findIndex(h => h === 'year');
+        if (exactYearIdx !== -1) {
+          yearIndex = exactYearIdx;
+        }
+      }
+    }
+
+    return { yearIndex, sectionIndex };
+  };
+
   // Sort data by year and section for better organization
   const sortDataByYearAndSection = (rows, headers) => {
-    // Find year and section column indices
-    const yearIndex = headers.findIndex(header => 
-      header && (header.toLowerCase().includes('year') || header.toLowerCase().includes('class'))
-    );
-    const sectionIndex = headers.findIndex(header => 
-      header && (header.toLowerCase().includes('section') || header.toLowerCase().includes('div'))
-    );
+    // Find year and section column indices with heuristics
+    const { yearIndex, sectionIndex } = detectYearAndSectionIndices(rows, headers);
 
     if (yearIndex === -1 && sectionIndex === -1) {
       return rows; // No sorting if columns not found
@@ -351,12 +433,7 @@ const BulkImport = ({ onClose, onSuccess }) => {
 
   // Group data by year and section for better organization
   const groupDataByYearAndSection = (rows, headers) => {
-    const yearIndex = headers.findIndex(header => 
-      header && (header.toLowerCase().includes('year') || header.toLowerCase().includes('class'))
-    );
-    const sectionIndex = headers.findIndex(header => 
-      header && (header.toLowerCase().includes('section') || header.toLowerCase().includes('div'))
-    );
+    const { yearIndex, sectionIndex } = detectYearAndSectionIndices(rows, headers);
 
     if (yearIndex === -1 && sectionIndex === -1) {
       return { 'All Students': rows };
@@ -381,12 +458,16 @@ const BulkImport = ({ onClose, onSuccess }) => {
         section = parsed.section || 'Unknown';
       }
       
-      const groupKey = `${year} - Section ${section}`;
+      // Normalize to consistent YEAR-SECTION label (e.g., II-A)
+      const normalizedYear = toRomanYear(year || '');
+      const normalizedSection = (section || '').toString().trim().toUpperCase();
+      const groupKey = `${normalizedYear || year}-${normalizedSection || section}`;
       
       if (!groups[groupKey]) {
         groups[groupKey] = [];
       }
-      groups[groupKey].push({ ...row, originalIndex: index });
+      // Keep rows as arrays; avoid spreading into objects which breaks consumers
+      groups[groupKey].push(row);
     });
 
     return groups;
@@ -439,27 +520,63 @@ const BulkImport = ({ onClose, onSuccess }) => {
           });
 
           if (jsonData.length >= 2) {
-            const headers = jsonData[0];
+            const baseHeaders = jsonData[0];
             const rows = jsonData.slice(1).filter(row => row.some(cell => cell !== null && cell !== ''));
 
             if (rows.length > 0) {
               // Parse year and section from sheet name (e.g., "II A", "III B")
               const parsed = parseYearAndSection(sheetName);
-              const year = parsed.year || 'Unknown';
+              const year = toRomanYear(parsed.year || 'Unknown') || 'Unknown';
               const section = parsed.section || 'Unknown';
               
-              // Add year and section info to each row
+              // Build sheet headers exactly once, then append values per row
+              const sheetHeaders = [...baseHeaders];
+              // Detect indices for existing Year/Section columns (case-insensitive)
+              const existingYearIdx = sheetHeaders.findIndex(h => h && h.toString().toLowerCase() === 'year');
+              const existingSectionIdx = sheetHeaders.findIndex(h => h && h.toString().toLowerCase() === 'section');
+              const needYear = existingYearIdx === -1;
+              const needSection = existingSectionIdx === -1;
+              if (needYear) sheetHeaders.push('Year');
+              if (needSection) sheetHeaders.push('Section');
+              // Always add hidden columns to preserve sheet-derived values
+              sheetHeaders.push('SheetYear');
+              sheetHeaders.push('SheetSection');
+
+              // Add year and section info to each row consistently
+              const isPlaceholderEmpty = (val) => {
+                if (val === undefined || val === null) return true;
+                const s = val.toString().trim();
+                if (s === '') return true;
+                const upper = s.toUpperCase();
+                return upper === '-' || upper === '—' || upper === 'NA' || upper === 'N/A' || upper === 'UNKNOWN';
+              };
+
               const enrichedRows = rows.map(row => {
                 const newRow = [...row];
-                // Add year and section columns if they don't exist
-                if (!headers.includes('Year')) {
-                  headers.push('Year');
+                // If Year/Section columns are missing, append parsed values
+                if (needYear) {
                   newRow.push(year);
+                } else {
+                  // Backfill empty cells in existing Year column from sheet name
+                  const yrIdx = existingYearIdx;
+                  const current = newRow[yrIdx];
+                  if (isPlaceholderEmpty(current)) {
+                    newRow[yrIdx] = year;
+                  }
                 }
-                if (!headers.includes('Section')) {
-                  headers.push('Section');
+                if (needSection) {
                   newRow.push(section);
+                } else {
+                  // Backfill empty cells in existing Section column from sheet name
+                  const secIdx = existingSectionIdx;
+                  const current = newRow[secIdx];
+                  if (isPlaceholderEmpty(current)) {
+                    newRow[secIdx] = section;
+                  }
                 }
+                // Append hidden sheet-derived values
+                newRow.push(year);
+                newRow.push(section);
                 return newRow;
               });
               
@@ -473,8 +590,8 @@ const BulkImport = ({ onClose, onSuccess }) => {
               });
               
               // Merge headers (use the longest header array)
-              if (!allHeaders || headers.length > allHeaders.length) {
-                allHeaders = headers;
+              if (!allHeaders || sheetHeaders.length > allHeaders.length) {
+                allHeaders = sheetHeaders;
               }
               
               // Add rows to all data
@@ -504,7 +621,7 @@ const BulkImport = ({ onClose, onSuccess }) => {
         });
 
         // Process dates in the data
-        const processedRows = normalizedData.map(row => {
+        let processedRows = normalizedData.map(row => {
           return row.map((cell, index) => {
             // Check if this column might be a date (based on header)
             const header = allHeaders[index];
@@ -515,36 +632,14 @@ const BulkImport = ({ onClose, onSuccess }) => {
           });
         });
 
-        // Sort data by year and section for better organization
+        // Note: We avoid global backfill of Year to prevent wrong groups like IA/IB/IC.
+
+        // Sort and group; department-only selection now
         const sortedRows = sortDataByYearAndSection(processedRows, allHeaders);
-        
-        // Filter data to only include the selected year and section if specified
-        let filteredRows = sortedRows;
-        if (selectedYear && selectedSection) {
-          filteredRows = sortedRows.filter(row => {
-            const yearIndex = allHeaders.findIndex(header => 
-              header && (header.toLowerCase().includes('year') || header.toLowerCase().includes('class'))
-            );
-            const sectionIndex = allHeaders.findIndex(header => 
-              header && (header.toLowerCase().includes('section') || header.toLowerCase().includes('div'))
-            );
-            
-            if (yearIndex !== -1 && sectionIndex !== -1) {
-              const rowYear = row[yearIndex] || '';
-              const rowSection = row[sectionIndex] || '';
-              
-              // Check if this row matches the selected year and section
-              return rowYear.toString().toUpperCase() === selectedYear.toUpperCase() && 
-                     rowSection.toString().toUpperCase() === selectedSection.toUpperCase();
-            }
-            return true; // Include if we can't determine year/section
-          });
-        }
-        
-        const grouped = groupDataByYearAndSection(filteredRows, allHeaders);
+        const grouped = groupDataByYearAndSection(sortedRows, allHeaders);
 
         // Ensure data is properly formatted
-        const finalData = filteredRows.filter(row => Array.isArray(row) && row.length > 0);
+        const finalData = sortedRows.filter(row => Array.isArray(row) && row.length > 0);
         const finalGrouped = {};
         
         Object.entries(grouped).forEach(([key, value]) => {
@@ -556,6 +651,7 @@ const BulkImport = ({ onClose, onSuccess }) => {
         setData(finalData);
         setGroupedData(finalGrouped);
         setSheetInfo(sheetInfo);
+        setHeaders(allHeaders || []);
         
         console.log('Processed sheets:', sheetInfo);
         console.log('Total rows:', allData.length);
@@ -571,23 +667,19 @@ const BulkImport = ({ onClose, onSuccess }) => {
           
           // Enhanced variations mapping with priority
           const variations = {
-            // Admission Number variations - more comprehensive
-            'admissionnumber': 'admissionNumber',
-            'admissionno': 'admissionNumber',
-            'admission': 'admissionNumber',
-            'rollno': 'admissionNumber',
-            'rollnumber': 'admissionNumber',
-            'roll': 'admissionNumber',
-            'roll.': 'admissionNumber',
-            'roll no': 'admissionNumber',
-            'roll number': 'admissionNumber',
-            'rollno.': 'admissionNumber',
-            'roll.number': 'admissionNumber',
-            'regno': 'admissionNumber',
-            'registration': 'admissionNumber',
-            'studentid': 'admissionNumber',
-            'id': 'admissionNumber',
-            'student_id': 'admissionNumber',
+            // Roll No variations
+            'rollno': 'rollNo',
+            'roll number': 'rollNo',
+            'roll no': 'rollNo',
+            'roll': 'rollNo',
+            'roll.': 'rollNo',
+            'rollno.': 'rollNo',
+            'roll.number': 'rollNo',
+            'regno': 'rollNo',
+            'registration': 'rollNo',
+            'studentid': 'rollNo',
+            'id': 'rollNo',
+            'student_id': 'rollNo',
             
             // Name variations
             'fullname': 'name',
@@ -751,28 +843,10 @@ const BulkImport = ({ onClose, onSuccess }) => {
           setMapping(enhancedMapping);
         }
         
-        // Auto-detect year from sheet names if available
-        if (sheetInfo && sheetInfo.length > 0) {
-          const firstSheet = sheetInfo[0];
-          console.log('📋 Sheet info:', firstSheet);
-          
-          // Try to extract year from sheet name (e.g., "II A" → Year: "II", Section: "A")
-          if (firstSheet.name) {
-            const sheetName = firstSheet.name;
-            const yearMatch = sheetName.match(/^(I{1,3}|IV|V|VI|VII|VIII|IX|X|XI|XII|1st|2nd|3rd|4th|5th|6th|7th|8th|9th|10th|11th|12th|First|Second|Third|Fourth|Fifth|Sixth|Seventh|Eighth|Ninth|Tenth|Eleventh|Twelfth)/i);
-            
-            if (yearMatch) {
-              const detectedYear = yearMatch[1];
-              console.log(`🔧 Detected year from sheet name "${sheetName}": ${detectedYear}`);
-              
-              // Set the detected year for all students in this import
-              setSelectedYear(detectedYear);
-            }
-          }
-        }
-        
+        // Year auto-detection disabled (no Year selection in UI)
+
         // Check if required fields are mapped
-        const requiredFields = ['admissionNumber', 'name'];
+        const requiredFields = ['rollNo', 'name'];
         const missingRequired = requiredFields.filter(field => !autoMapping[field]);
         
         if (missingRequired.length > 0) {
@@ -786,10 +860,10 @@ const BulkImport = ({ onClose, onSuccess }) => {
           allHeaders.forEach((header, index) => {
             const headerLower = header.toString().toLowerCase();
             
-            // Manual mapping for "Roll. No" → admissionNumber
-            if (headerLower.includes('roll') && !manualMapping.admissionNumber) {
-              manualMapping.admissionNumber = index;
-              console.log(`🔧 Manual override: "${header}" → admissionNumber`);
+            // Manual mapping for "Roll. No" → rollNo
+            if (headerLower.includes('roll') && !manualMapping.rollNo) {
+              manualMapping.rollNo = index;
+              console.log(`🔧 Manual override: "${header}" → rollNo`);
             }
             
             // Manual mapping for "Student Name" → name
@@ -799,7 +873,7 @@ const BulkImport = ({ onClose, onSuccess }) => {
             }
           });
           
-          if (manualMapping.admissionNumber !== undefined || manualMapping.name !== undefined) {
+          if (manualMapping.rollNo !== undefined || manualMapping.name !== undefined) {
             console.log('🔧 Applying manual mapping overrides:', manualMapping);
             setMapping(manualMapping);
           }
@@ -815,8 +889,8 @@ const BulkImport = ({ onClose, onSuccess }) => {
   };
 
   const handleYearSectionDepartment = () => {
-    if (!selectedDepartment || !selectedYear || !selectedSection) {
-      alert('Please select Department, Year, and Section before proceeding.');
+    if (!selectedDepartment) {
+      alert('Please select Department before proceeding.');
       return;
     }
     setStep(3);
@@ -854,6 +928,15 @@ const BulkImport = ({ onClose, onSuccess }) => {
             }
           }
           
+          // Normalize placeholders for year/section
+          if (fieldName === 'year' || fieldName === 'section') {
+            const token = value?.toString().trim();
+            if (token && ['-', '—', 'NA', 'N/A', 'Unknown', 'unknown'].includes(token)) {
+              cleanedRow[columnIndex] = '';
+              console.log(`🔧 Cleared placeholder in ${fieldName} at row ${rowIndex + 2}: "${token}"`);
+            }
+          }
+
           // Clean year values - if it's a single letter (A, B, C), it's likely a section, not year
           if (fieldName === 'year') {
             const yearValue = value.toString().trim();
@@ -1039,27 +1122,27 @@ const BulkImport = ({ onClose, onSuccess }) => {
       return;
     }
 
-    // Check for duplicate admission numbers with more flexible handling
-    const admissionNumbers = new Set();
+    // Check for duplicate roll numbers with more flexible handling
+    const rollNumbers = new Set();
     const duplicates = [];
     
     if (!skipDuplicateCheck) {
       data.forEach((row, index) => {
-        const admissionIndex = mapping.admissionNumber;
-        if (admissionIndex !== undefined && row[admissionIndex]) {
-          const admissionNumber = row[admissionIndex].toString().trim();
-          if (admissionNumbers.has(admissionNumber)) {
-            duplicates.push({ row: index + 2, admissionNumber });
+        const rollIndex = mapping.rollNo;
+        if (rollIndex !== undefined && row[rollIndex]) {
+          const rollNo = row[rollIndex].toString().trim();
+          if (rollNumbers.has(rollNo)) {
+            duplicates.push({ row: index + 2, rollNo });
           } else {
-            admissionNumbers.add(admissionNumber);
+            rollNumbers.add(rollNo);
           }
         }
       });
 
       if (duplicates.length > 0) {
-        const duplicateList = duplicates.map(d => `Row ${d.row}: ${d.admissionNumber}`).join('\n');
+        const duplicateList = duplicates.map(d => `Row ${d.row}: ${d.rollNo}`).join('\n');
         const shouldContinue = confirm(
-          `Found ${duplicates.length} duplicate admission numbers:\n${duplicateList}\n\n` +
+          `Found ${duplicates.length} duplicate roll numbers:\n${duplicateList}\n\n` +
           `⚠️ WARNING: Duplicates may cause data conflicts.\n\n` +
           `Do you want to continue with the import anyway?\n` +
           `(Click OK to continue, Cancel to fix duplicates first)`
@@ -1069,10 +1152,10 @@ const BulkImport = ({ onClose, onSuccess }) => {
           return;
         }
         
-        console.log(`⚠️ Proceeding with import despite ${duplicates.length} duplicate admission numbers`);
+        console.log(`⚠️ Proceeding with import despite ${duplicates.length} duplicate roll numbers`);
       }
     } else {
-      console.log(`⚠️ Skipping duplicate admission number check as requested`);
+      console.log(`⚠️ Skipping duplicate roll number check as requested`);
     }
 
     setIsUploading(true);
@@ -1086,6 +1169,21 @@ const BulkImport = ({ onClose, onSuccess }) => {
 
              // Use sorted data for import
        const sortedData = [...data];
+       
+       // Restrict allowed years to those actually present in sheet tabs
+       const allowedYearsSet = new Set(
+         (sheetInfo || [])
+           .map(s => (s.year || '').toString().trim().toUpperCase())
+           .filter(y => y && y !== 'UNKNOWN' && y !== 'U')
+       );
+       // Map of allowed sections by year based on sheet tabs
+       const allowedSectionsByYear = new Map();
+       (sheetInfo || []).forEach(s => {
+         const yr = (s.year || '').toString().trim().toUpperCase() || 'U';
+         const sec = (s.section || '').toString().trim().toUpperCase() || 'U';
+         if (!allowedSectionsByYear.has(yr)) allowedSectionsByYear.set(yr, new Set());
+         allowedSectionsByYear.get(yr).add(sec);
+       });
        
        for (let i = 0; i < sortedData.length; i++) {
          const row = sortedData[i];
@@ -1118,58 +1216,152 @@ const BulkImport = ({ onClose, onSuccess }) => {
                      // Override with selected department, year, section if not mapped in Excel
            if (selectedDepartment) studentData.department = selectedDepartment;
            
-           // Handle year and section parsing
-           if (selectedYear && selectedSection) {
-             studentData.year = selectedYear;
-             studentData.section = selectedSection;
-           } else {
-             // Try to parse from Excel data if available
-             const yearIndex = mapping.year;
-             const sectionIndex = mapping.section;
-             
-             if (yearIndex !== undefined && sectionIndex !== undefined) {
-               if (yearIndex === sectionIndex) {
-                 // Combined field like "III A"
-                 const parsed = parseYearAndSection(row[yearIndex]);
-                 studentData.year = parsed.year || selectedYear || 'Unknown';
-                 studentData.section = parsed.section || selectedSection || 'Unknown';
-               } else {
-                 // Separate fields
-                 studentData.year = row[yearIndex] || selectedYear || 'Unknown';
-                 studentData.section = row[sectionIndex] || selectedSection || 'Unknown';
-               }
-             } else {
-               studentData.year = selectedYear || 'Unknown';
-               studentData.section = selectedSection || 'Unknown';
+           // Handle year and section parsing (infer from data)
+           // Try to parse from Excel data if available
+           const yearIndex = headers.findIndex(header => 
+             header && (header.toLowerCase().includes('year') || header.toLowerCase().includes('class'))
+           );
+           const sectionIndex = headers.findIndex(header => 
+             header && (header.toLowerCase().includes('section') || header.toLowerCase().includes('div'))
+           );
+           // Highest priority: hidden SheetYear/SheetSection
+           const sheetYearIdx = headers.findIndex(h => h && h.toString().toLowerCase() === 'sheetyear');
+           const sheetSectionIdx = headers.findIndex(h => h && h.toString().toLowerCase() === 'sheetsection');
+           // Use sheet-derived first if available
+           if (sheetYearIdx !== -1) {
+             studentData.year = row[sheetYearIdx];
+           }
+           if (sheetSectionIdx !== -1) {
+             studentData.section = row[sheetSectionIdx];
+           }
+           // Use explicit year/section if not available
+           if (!studentData.year) {
+             if (yearIndex !== -1) {
+               studentData.year = row[yearIndex];
              }
+           }
+           if (!studentData.section) {
+             if (sectionIndex !== -1) {
+               studentData.section = row[sectionIndex];
+             }
+           }
+
+           const normalizeToken = (val) => {
+             if (!val) return 'U';
+             const str = val.toString().trim();
+             if (!str || str.toLowerCase() === 'unknown') return 'U';
+             return str.toUpperCase();
+           };
+           studentData.year = normalizeToken(studentData.year);
+           studentData.section = normalizeToken(studentData.section);
+
+           // If year appears as a single letter and section unknown, swap
+           if (/^[A-Z]$/.test(studentData.year) && (studentData.section === 'U' || studentData.section === '' || studentData.section === 'UNKNOWN')) {
+             const letter = studentData.year;
+             studentData.year = 'U';
+             studentData.section = letter;
+           }
+
+           // Last-resort: scan entire row for a combined pattern like "III A" and fill missing parts
+           if (studentData.year === 'U' || studentData.section === 'U') {
+             for (let scanIdx = 0; scanIdx < row.length; scanIdx++) {
+               const cell = row[scanIdx];
+               if (!cell) continue;
+               const parsed = parseYearAndSection(cell.toString());
+               if (studentData.year === 'U' && parsed.year) studentData.year = normalizeToken(parsed.year);
+               if (studentData.section === 'U' && parsed.section) studentData.section = normalizeToken(parsed.section);
+               if (studentData.year !== 'U' && studentData.section !== 'U') break;
+             }
+           }
+
+           // Enforce that year/section belong to the sets parsed from sheet tabs
+           try {
+             // Build allowed sets/maps from sheetInfo
+             const allowedYearsSetLocal = new Set(
+               (sheetInfo || [])
+                 .map(s => (s.year || '').toString().trim().toUpperCase())
+                 .filter(y => y && y !== 'UNKNOWN' && y !== 'U')
+             );
+             const allowedSectionsByYearLocal = new Map();
+             const yearFrequencyLocal = new Map();
+             (sheetInfo || []).forEach(s => {
+               const yr = (s.year || '').toString().trim().toUpperCase() || 'U';
+               const sec = (s.section || '').toString().trim().toUpperCase() || 'U';
+               if (!allowedSectionsByYearLocal.has(yr)) allowedSectionsByYearLocal.set(yr, new Set());
+               allowedSectionsByYearLocal.get(yr).add(sec);
+               yearFrequencyLocal.set(yr, (yearFrequencyLocal.get(yr) || 0) + 1);
+             });
+             const pickMostFrequentYearLocal = () => {
+               let bestYear = null;
+               let bestCount = -1;
+               for (const [yr, cnt] of yearFrequencyLocal.entries()) {
+                 if (cnt > bestCount) { bestYear = yr; bestCount = cnt; }
+               }
+               return bestYear || 'U';
+             };
+
+             const isRomanYear = (y) => /^(I{1,3}|IV|V{1,3}|IX|X{1,3}|XI|XII)$/.test((y || '').toString().toUpperCase());
+
+             // Only coerce the year if it's unknown/invalid, never override a valid Roman year like IV
+             if (!isRomanYear(studentData.year)) {
+               if (studentData.year === 'U' || studentData.year === '' || studentData.year === 'UNKNOWN') {
+                 if (allowedYearsSetLocal.size > 0) {
+                   studentData.year = pickMostFrequentYearLocal();
+                 }
+               }
+             }
+
+             // For section, only coerce if unknown or not allowed for the chosen year AND we know allowed set for that year
+             const allowedForYear = allowedSectionsByYearLocal.get(studentData.year);
+             const isUnknownSection = (s) => !s || s === 'U' || s === 'UNKNOWN' || s === '';
+             if (allowedForYear && (isUnknownSection(studentData.section) || !allowedForYear.has(studentData.section))) {
+               const firstAllowed = Array.from(allowedForYear).sort()[0];
+               if (firstAllowed) studentData.section = firstAllowed;
+             }
+           } catch (e) {
+             // If anything goes wrong, keep existing values
+           }
+
+           // Final fallback if any is still missing (use compact tokens)
+           if (!studentData.year) studentData.year = 'U';
+           if (!studentData.section) studentData.section = 'U';
+
+           // Extra recovery from explicit 'Year'/'Section' columns if present
+           const explicitYearIdx = headers.findIndex(h => h && h.toString().toLowerCase() === 'year');
+           const explicitSectionIdx = headers.findIndex(h => h && h.toString().toLowerCase() === 'section');
+           if ((studentData.year === 'U' || studentData.year === 'Unknown') && explicitYearIdx !== -1) {
+             const yr = row[explicitYearIdx];
+             if (yr) studentData.year = yr;
+           }
+           if ((studentData.section === 'U' || studentData.section === 'Unknown') && explicitSectionIdx !== -1) {
+             const sec = row[explicitSectionIdx];
+             if (sec) studentData.section = sec;
            }
 
                                // Create a shorter, more manageable student ID with duplicate handling
           const deptShort = getDepartmentShortName(studentData.department);
-          let baseAdmissionNumber = studentData.admissionNumber || `AUTO_${Date.now()}_${i}`;
+          // Use provided roll number or auto-generate if missing
+          let baseRollNo = studentData.rollNo || `AUTO_${Date.now()}_${i}`;
           
           // Handle duplicate admission numbers by adding a suffix
-          let studentId = `${deptShort}_${studentData.year || 'U'}_${studentData.section || 'U'}_${baseAdmissionNumber}`;
+          let studentId = `${deptShort}_${studentData.year || 'U'}_${studentData.section || 'U'}_${baseRollNo}`;
           
-          // Check if this admission number is a duplicate and add suffix if needed
-          if (admissionNumbers.has(baseAdmissionNumber)) {
+          // If duplicate is detected, keep original roll number (no suffix) but make studentId unique by adding a counter only to ID
+          if (rollNumbers && rollNumbers.has(`${deptShort}|${studentData.year}|${studentData.section}|${baseRollNo}`)) {
             let counter = 1;
-            let newAdmissionNumber = baseAdmissionNumber;
-            
-            // Keep trying until we find a unique admission number
-            while (admissionNumbers.has(newAdmissionNumber)) {
-              newAdmissionNumber = `${baseAdmissionNumber}_${counter}`;
+            while (rollNumbers.has(`${deptShort}|${studentData.year}|${studentData.section}|${baseRollNo}_${counter}`)) {
               counter++;
             }
-            
-            // Update the admission number and student ID
-            studentData.admissionNumber = newAdmissionNumber;
-            studentId = `${deptShort}_${studentData.year || 'U'}_${studentData.section || 'U'}_${newAdmissionNumber}`;
-            console.log(`🔄 Modified duplicate admission number: ${baseAdmissionNumber} → ${newAdmissionNumber}`);
+            // Keep roll number field unchanged; only the doc id will vary if conflict
+            baseRollNo = `${baseRollNo}_${counter}`;
+            studentId = `${deptShort}_${studentData.year || 'U'}_${studentData.section || 'U'}_${baseRollNo}`;
+            console.log(`🔄 Duplicate roll detected in same group. Using unique doc id: ${baseRollNo}`);
           }
           
-          // Add the admission number to the set to track for future duplicates
-          admissionNumbers.add(studentData.admissionNumber);
+          // Add the roll number to the set to track for future duplicates
+          if (rollNumbers) {
+            rollNumbers.add(`${deptShort}|${studentData.year}|${studentData.section}|${baseRollNo}`);
+          }
           
           const finalStudentData = {
             ...studentData,
@@ -1184,8 +1376,8 @@ const BulkImport = ({ onClose, onSuccess }) => {
           };
 
           // Validate required fields before saving
-          if (!finalStudentData.admissionNumber || !finalStudentData.name) {
-            console.error(`Row ${i + 1}: Missing required fields - Admission Number: ${finalStudentData.admissionNumber}, Name: ${finalStudentData.name}`);
+          if (!finalStudentData.rollNo || !finalStudentData.name) {
+            console.error(`Row ${i + 1}: Missing required fields - Roll No: ${finalStudentData.rollNo}, Name: ${finalStudentData.name}`);
             errorCount++;
             continue;
           }
@@ -1200,20 +1392,17 @@ const BulkImport = ({ onClose, onSuccess }) => {
           // This creates a clean department → year → section → student structure
           // Note: We sanitize the department name to avoid Firestore collection path issues
           // with spaces and special characters in department names
-          const sanitizedDepartment = sanitizeDepartmentForPath(studentData.department || 'Unknown');
-          const sanitizedYear = (studentData.year || 'Unknown').toString().replace(/[^a-zA-Z0-9]/g, '');
-          const sanitizedSection = (studentData.section || 'Unknown').toString().replace(/[^a-zA-Z0-9]/g, '');
-          
-          // Create organized path structure using subcollections
-          // Structure: students/{department}/years/{year}/sections/{section}/students/{studentId}
-          // This creates: students/CSE_DS/years/II/sections/A/students/21691A3201_1
-          const departmentRef = collection(db, `students/${sanitizedDepartment}/years`);
-          const yearRef = collection(departmentRef, `${sanitizedYear}/sections`);
-          const sectionRef = collection(yearRef, `${sanitizedSection}/students`);
-          const studentDoc = doc(sectionRef, studentId);
+          // Use compact, organized path for faster lookups:
+          // students/{deptShort}/{year-section}/{rollNo}
+          const sanitizedDept = (deptShort || 'UNK').toString().replace(/[^A-Z0-9_]/gi, '');
+          const sanitizedYear = (studentData.year || 'U').toString().replace(/[^A-Z0-9]/gi, '');
+          const sanitizedSection = (studentData.section || 'U').toString().replace(/[^A-Z0-9]/gi, '');
+          const groupKey = `${sanitizedYear}-${sanitizedSection}`;
+          const groupRef = collection(db, `students/${sanitizedDept}/${groupKey}`);
+          const studentDoc = doc(groupRef, baseRollNo);
           
           // Debug logging to verify the path structure
-          console.log(`Creating document at path: students/${sanitizedDepartment}/years/${sanitizedYear}/sections/${sanitizedSection}/students/${studentId}`);
+          console.log(`Creating document at path: students/${sanitizedDept}/${groupKey}/${baseRollNo}`);
           
           currentBatch.set(studentDoc, finalStudentData);
 
@@ -1310,7 +1499,7 @@ const BulkImport = ({ onClose, onSuccess }) => {
      setData(sortedRows);
      setGroupedData(grouped);
      setMapping({
-       admissionNumber: 0, name: 1, gender: 2, dateOfBirth: 3, email: 4, studentMobile: 5,
+       rollNo: 0, name: 1, gender: 2, dateOfBirth: 3, email: 4, studentMobile: 5,
        program: 6, department: 7, year: 8, section: 9, fatherName: 10, fatherMobile: 11,
        motherName: 12, address: 13, stateOfOrigin: 14, district: 15, pincode: 16,
        feeStructure: 17, totalFee: 18, paymentStatus: 19
@@ -1382,231 +1571,59 @@ const BulkImport = ({ onClose, onSuccess }) => {
     <>
       <div className="space-y-6">
         <div className="text-center">
-          <h3 className="text-xl font-semibold text-gray-900 mb-2">Select Department, Year & Section</h3>
-          <p className="text-gray-600">Choose the department, year, and section for all students in this import</p>
+          <h3 className="text-xl font-semibold text-gray-900 mb-2">Select Department</h3>
+          <p className="text-gray-600">Choose the department for all students in this import</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-700">Department *</label>
-          <select
-            value={selectedDepartment}
-            onChange={(e) => setSelectedDepartment(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            required
-          >
-                         <option value="">Select Department</option>
-             <option value="Civil Engineering">Civil Engineering</option>
-             <option value="Electronics & Communication Engineering">Electronics & Communication Engineering</option>
-             <option value="Electrical & Electronics Engineering">Electrical & Electronics Engineering</option>
-             <option value="Mechanical Engineering">Mechanical Engineering</option>
-             <option value="Basic Sciences & Humanities">Basic Sciences & Humanities</option>
-             <option value="Management Studies">Management Studies</option>
-             <option value="Computer Applications">Computer Applications</option>
-             <option value="Computer Science & Engineering">Computer Science & Engineering</option>
-             <option value="Computer Science & Engineering (Artificial Intelligence)">Computer Science & Engineering (Artificial Intelligence)</option>
-             <option value="Computer Science & Engineering (Cyber Security)">Computer Science & Engineering (Cyber Security)</option>
-             <option value="Computer Science & Technology">Computer Science & Technology</option>
-             <option value="Computer Science & Engineering (Data Science)">Computer Science & Engineering (Data Science)</option>
-             <option value="Computer Science and Engineering (Artificial Intelligence and Machine Learning)">Computer Science and Engineering (Artificial Intelligence and Machine Learning)</option>
-             <option value="Computer Science and Engineering (Networks)">Computer Science and Engineering (Networks)</option>
-          </select>
-        </div>
-
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-700">Year *</label>
-          <select
-            value={selectedYear}
-            onChange={(e) => setSelectedYear(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            required
-          >
-            <option value="">Select Year</option>
-            <optgroup label="Roman Numerals">
-              <option value="I">I</option>
-              <option value="II">II</option>
-              <option value="III">III</option>
-              <option value="IV">IV</option>
-              <option value="V">V</option>
-              <option value="VI">VI</option>
-              <option value="VII">VII</option>
-              <option value="VIII">VIII</option>
-              <option value="IX">IX</option>
-              <option value="X">X</option>
-              <option value="XI">XI</option>
-              <option value="XII">XII</option>
-            </optgroup>
-            <optgroup label="Numeric Years">
-              <option value="1st Year">1st Year</option>
-              <option value="2nd Year">2nd Year</option>
-              <option value="3rd Year">3rd Year</option>
-              <option value="4th Year">4th Year</option>
-              <option value="5th Year">5th Year</option>
-              <option value="6th Year">6th Year</option>
-              <option value="7th Year">7th Year</option>
-              <option value="8th Year">8th Year</option>
-              <option value="9th Year">9th Year</option>
-              <option value="10th Year">10th Year</option>
-              <option value="11th Year">11th Year</option>
-              <option value="12th Year">12th Year</option>
-            </optgroup>
-            <optgroup label="Written Years">
-              <option value="First Year">First Year</option>
-              <option value="Second Year">Second Year</option>
-              <option value="Third Year">Third Year</option>
-              <option value="Fourth Year">Fourth Year</option>
-              <option value="Fifth Year">Fifth Year</option>
-              <option value="Sixth Year">Sixth Year</option>
-              <option value="Seventh Year">Seventh Year</option>
-              <option value="Eighth Year">Eighth Year</option>
-              <option value="Ninth Year">Ninth Year</option>
-              <option value="Tenth Year">Tenth Year</option>
-              <option value="Eleventh Year">Eleventh Year</option>
-              <option value="Twelfth Year">Twelfth Year</option>
-            </optgroup>
-          </select>
-        </div>
-
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-700">Section *</label>
-          <select
-            value={selectedSection}
-            onChange={(e) => setSelectedSection(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            required
-          >
-            <option value="">Select Section</option>
-            <optgroup label="Alphabets">
-              <option value="A">A</option>
-              <option value="B">B</option>
-              <option value="C">C</option>
-              <option value="D">D</option>
-              <option value="E">E</option>
-              <option value="F">F</option>
-              <option value="G">G</option>
-              <option value="H">H</option>
-              <option value="I">I</option>
-              <option value="J">J</option>
-              <option value="K">K</option>
-              <option value="L">L</option>
-              <option value="M">M</option>
-              <option value="N">N</option>
-              <option value="O">O</option>
-              <option value="P">P</option>
-              <option value="Q">Q</option>
-              <option value="R">R</option>
-              <option value="S">S</option>
-              <option value="T">T</option>
-              <option value="U">U</option>
-              <option value="V">V</option>
-              <option value="W">W</option>
-              <option value="X">X</option>
-              <option value="Y">Y</option>
-              <option value="Z">Z</option>
-            </optgroup>
-            <optgroup label="Greek Letters">
-              <option value="Alpha">Alpha</option>
-              <option value="Beta">Beta</option>
-              <option value="Gamma">Gamma</option>
-              <option value="Delta">Delta</option>
-              <option value="Epsilon">Epsilon</option>
-              <option value="Zeta">Zeta</option>
-              <option value="Eta">Eta</option>
-              <option value="Theta">Theta</option>
-              <option value="Iota">Iota</option>
-              <option value="Kappa">Kappa</option>
-              <option value="Lambda">Lambda</option>
-              <option value="Mu">Mu</option>
-              <option value="Nu">Nu</option>
-              <option value="Xi">Xi</option>
-              <option value="Omicron">Omicron</option>
-              <option value="Pi">Pi</option>
-              <option value="Rho">Rho</option>
-              <option value="Sigma">Sigma</option>
-              <option value="Tau">Tau</option>
-              <option value="Upsilon">Upsilon</option>
-              <option value="Phi">Phi</option>
-              <option value="Chi">Chi</option>
-              <option value="Psi">Psi</option>
-              <option value="Omega">Omega</option>
-            </optgroup>
-          </select>
-        </div>
-      </div>
-
-      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-6">
-        <div className="flex items-center mb-4">
-          <div className="bg-blue-600 rounded-lg p-2 mr-3">
-            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
+        <div className="grid grid-cols-1 md:grid-cols-1 gap-6">
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700">Department *</label>
+            <select
+              value={selectedDepartment}
+              onChange={(e) => setSelectedDepartment(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              required
+            >
+              <option value="">Select Department</option>
+              <option value="Civil Engineering">Civil Engineering</option>
+              <option value="Electronics & Communication Engineering">Electronics & Communication Engineering</option>
+              <option value="Electrical & Electronics Engineering">Electrical & Electronics Engineering</option>
+              <option value="Mechanical Engineering">Mechanical Engineering</option>
+              <option value="Basic Sciences & Humanities">Basic Sciences & Humanities</option>
+              <option value="Management Studies">Management Studies</option>
+              <option value="Computer Applications">Computer Applications</option>
+              <option value="Computer Science & Engineering">Computer Science & Engineering</option>
+              <option value="Computer Science & Engineering (Artificial Intelligence)">Computer Science & Engineering (Artificial Intelligence)</option>
+              <option value="Computer Science & Engineering (Cyber Security)">Computer Science & Engineering (Cyber Security)</option>
+              <option value="Computer Science & Technology">Computer Science & Technology</option>
+              <option value="Computer Science & Engineering (Data Science)">Computer Science & Engineering (Data Science)</option>
+              <option value="Computer Science and Engineering (Artificial Intelligence and Machine Learning)">Computer Science and Engineering (Artificial Intelligence and Machine Learning)</option>
+              <option value="Computer Science and Engineering (Networks)">Computer Science and Engineering (Networks)</option>
+            </select>
           </div>
-          <h4 className="text-blue-800 font-bold text-lg">Import Information</h4>
         </div>
-        <div className="space-y-3">
-          <p className="text-blue-700">
-            All students will be assigned to: <span className="font-semibold bg-blue-100 px-2 py-1 rounded">{selectedDepartment || 'Department'}</span> → <span className="font-semibold bg-blue-100 px-2 py-1 rounded">{selectedYear || 'Year'}</span> → <span className="font-semibold bg-blue-100 px-2 py-1 rounded">{selectedSection || 'Section'}</span>
-          </p>
-          <div className="bg-white border border-blue-200 rounded-lg p-3">
-            <p className="text-blue-700 text-sm font-medium mb-1">Storage Path:</p>
-            <code className="bg-gray-100 px-3 py-2 rounded-lg text-sm font-mono text-gray-800 block">
-              students/{sanitizeDepartmentForPath(selectedDepartment || 'Department')}/years/{(selectedYear || 'Year').toString().replace(/[^a-zA-Z0-9]/g, '')}/sections/{(selectedSection || 'Section').toString().replace(/[^a-zA-Z0-9]/g, '')}/students/[studentId]
-            </code>
-            <p className="text-blue-600 text-xs mt-2">
-              Example: students/CSE_DS/years/II/sections/A/students/21691A3201_1
-            </p>
-          </div>
-          <p className="text-blue-700 text-sm">
-            <strong>Note:</strong> Only <strong>Admission Number</strong> and <strong>Full Name</strong> are required fields. All other fields are optional.
-          </p>
-        </div>
-      </div>
-      
-      <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded">
-          <p className="text-green-700 text-xs">
-            <strong>Benefits of this structure:</strong> Better organization by department, easier faculty management, improved reporting, and scalable architecture.
-          </p>
-        </div>
-        
-        {/* Show processed sheets information */}
-        {sheetInfo.length > 0 && (
-          <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded">
-            <h4 className="font-semibold text-blue-800 mb-2">📊 Processed Sheets:</h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-              {sheetInfo.map((sheet, index) => (
-                <div key={index} className="text-sm bg-white p-2 rounded border">
-                  <div className="font-medium text-blue-700">{sheet.name}</div>
-                  <div className="text-gray-600">
-                    Year: {sheet.year} | Section: {sheet.section} | Rows: {sheet.rowCount}
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="mt-2 text-sm text-blue-700 font-medium">
-              Total Rows: {data.length} | Total Sheets: {sheetInfo.length}
-            </div>
-          </div>
-        )}
-      </div>
 
-      <div className="flex justify-between">
-        <button
-          onClick={() => setStep(1)}
-          className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-        >
-          Back
-        </button>
-        <button
-          onClick={handleYearSectionDepartment}
-          disabled={!selectedDepartment || !selectedYear || !selectedSection}
-          className={`px-4 py-2 rounded-lg transition-colors ${
-            !selectedDepartment || !selectedYear || !selectedSection
-              ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
-              : 'bg-blue-600 text-white hover:bg-blue-700'
-          }`}
-        >
-          Continue to Mapping
-        </button>
+        {/* Removed additional import information and year/section selection per request */}
+
+        <div className="flex justify-between">
+          <button
+            onClick={() => setStep(1)}
+            className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            Back
+          </button>
+          <button
+            onClick={handleYearSectionDepartment}
+            disabled={!selectedDepartment}
+            className={`px-4 py-2 rounded-lg transition-colors ${
+              !selectedDepartment
+                ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                : 'bg-blue-600 text-white hover:bg-blue-700'
+            }`}
+          >
+            Continue to Mapping
+          </button>
+        </div>
       </div>
     </>
   );
@@ -1789,7 +1806,7 @@ const BulkImport = ({ onClose, onSuccess }) => {
                     }`}
                   >
                     <option value="">Not mapped</option>
-                    {Array.isArray(data[0]) ? data[0].map((header, index) => (
+                    {Array.isArray(headers) && headers.length > 0 ? headers.map((header, index) => (
                       <option key={index} value={index}>
                         {header || `Column ${index + 1}`}
                       </option>
@@ -1822,7 +1839,7 @@ const BulkImport = ({ onClose, onSuccess }) => {
                     <table className="min-w-full">
                       <thead className="bg-gray-50">
                         <tr>
-                          {Array.isArray(data[0]) ? data[0].map((header, index) => (
+                          {Array.isArray(headers) && headers.length > 0 ? headers.map((header, index) => (
                             <th key={index} className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">
                               {header || `Column ${index + 1}`}
                             </th>
@@ -2013,7 +2030,7 @@ const BulkImport = ({ onClose, onSuccess }) => {
       console.log('Enhanced mapping result:', testMapping);
       
       // Check if required fields are mapped
-      const requiredFields = ['admissionNumber', 'name'];
+      const requiredFields = ['rollNo', 'name'];
       const missingFields = requiredFields.filter(field => !testMapping[field]);
       
       if (missingFields.length > 0) {

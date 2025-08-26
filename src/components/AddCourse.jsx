@@ -23,6 +23,58 @@ const AddCourse = () => {
     coveragePercentage: "",
   });
 
+  // Department options (extend as needed)
+  const departmentOptions = [
+    "Civil Engineering",
+    "Electronics & Communication Engineering",
+    "Electrical & Electronics Engineering",
+    "Mechanical Engineering",
+    "Basic Sciences & Humanities",
+    "Management Studies",
+    "Computer Applications",
+    "Computer Science & Engineering",
+    "Computer Science & Engineering (Artificial Intelligence)",
+    "Computer Science & Engineering (Cyber Security)",
+    "Computer Science & Technology",
+    "Computer Science & Engineering (Data Science)",
+    "Computer Science and Engineering (Artificial Intelligence and Machine Learning)",
+    "Computer Science and Engineering (Networks)",
+  ];
+
+  // Compact key mapping for departments
+  const departmentKeyMap = {
+    "Civil Engineering": "CE",
+    "Electronics & Communication Engineering": "ECE",
+    "Electrical & Electronics Engineering": "EEE",
+    "Mechanical Engineering": "ME",
+    "Basic Sciences & Humanities": "BSH",
+    "Management Studies": "MS",
+    "Computer Applications": "CA",
+    "Computer Science & Engineering": "CSE",
+    "Computer Science & Engineering (Artificial Intelligence)": "CSE_AI",
+    "Computer Science & Engineering (Cyber Security)": "CSE_CS",
+    "Computer Science & Technology": "CST",
+    "Computer Science & Engineering (Data Science)": "CSE_DS",
+    "Computer Science and Engineering (Artificial Intelligence and Machine Learning)": "CSE_AIML",
+    "Computer Science and Engineering (Networks)": "CSE_NW",
+  };
+
+  const toKey = (value) => {
+    return String(value || "")
+      .toUpperCase()
+      .replace(/&/g, "AND")
+      .replace(/[^A-Z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "");
+  };
+
+  const getDepartmentKey = (name) => departmentKeyMap[name] || toKey(name);
+  const getYearKey = (year) => {
+    const raw = String(year || "");
+    const firstPart = raw.includes("_") ? raw.split("_")[0] : raw;
+    return toKey(firstPart);
+  };
+  const getSectionKey = (section) => toKey(section || "All_Sections");
+
   // Handle Excel file upload
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
@@ -33,64 +85,59 @@ const AddCourse = () => {
       const workbook = XLSX.read(arrayBuffer, { type: "array" });
       const sheetName = workbook.SheetNames[0];
       const sheet = workbook.Sheets[sheetName];
-      const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
-      // Map the data to the expected fields
-      const mappedData = jsonData.slice(1).map((row, index) => {
-        const mappedRow = {
-          department: row[0] || "",
-          year: row[1] || "",
-          section: row[2] || "",
-          courseName: row[3] || "",
-          courseCode: row[4] || "",
-          instructor: row[5] || "",
-          actualHours: row[6] || "",
-          deviationReasons: row[7] || "",
-          leavesAvailed: row[8] || "",
-          cls: row[9] || "",
-          ods: row[10] || "",
-          permissions: row[11] || "",
-          unitsCompleted: row[12] || "",
-          syllabusCoverage: row[13] || "",
-          coveragePercentage: row[14] || "",
-        };
+      // Expect headers: Year, Course Code, Course Name
+      const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
 
-        // Debug invalid rows
-        if (
-          !mappedRow.department &&
-          !mappedRow.year &&
-          !mappedRow.section &&
-          !mappedRow.courseName &&
-          !mappedRow.courseCode
-        ) {
-          console.warn(`Invalid row at index ${index}:`, mappedRow);
-          return null;
-        }
-        return mappedRow;
-      });
+      const mappedData = rows
+        .map((row, index) => {
+          const year = row["Year"] || "";
+          const courseCode = row["Course Code"] || "";
+          const courseName = row["Course Name"] || "";
 
-      // Filter out null values
-      const validData = mappedData.filter((row) => row !== null);
-      console.log("Validated Excel Data:", validData); // Debugging log
-      setExcelData(validData);
+          const mappedRow = {
+            department: formData.department || "",
+            year,
+            section: "All_Sections",
+            courseName,
+            courseCode,
+          };
+
+          if (!mappedRow.department || !mappedRow.year || !mappedRow.courseCode || !mappedRow.courseName) {
+            console.warn(`Invalid row at index ${index}:`, mappedRow);
+            return null;
+          }
+          return mappedRow;
+        })
+        .filter(Boolean);
+
+      console.log("Validated Excel Data:", mappedData); // Debugging log
+      setExcelData(mappedData);
     };
 
     reader.readAsArrayBuffer(file);
   };
 
+  const buildSectionRef = (deptName, yearName, sectionName) => {
+    const deptKey = getDepartmentKey(deptName);
+    const yearKey = getYearKey(yearName);
+    const sectionKey = getSectionKey(sectionName);
+    return doc(db, "courses", deptKey, "years", yearKey, "sections", sectionKey);
+  };
+
   const uploadExcelDataToFirebase = async () => {
     const promises = excelData.map(async (row) => {
-      const sectionRef = doc(
-        db,
-        "courses",
-        row.department,
-        "years",
-        row.year,
-        "sections",
-        row.section
-      );
+      const sectionRef = buildSectionRef(row.department, row.year, row.section);
       const courseCollection = collection(sectionRef, "courseDetails");
-      await addDoc(courseCollection, row);
+      const payload = {
+        courseName: row.courseName,
+        courseCode: row.courseCode,
+        // Store the human-readable context as well
+        displayDepartment: row.department,
+        displayYear: row.year,
+        displaySection: row.section,
+      };
+      await addDoc(courseCollection, payload);
     });
     await Promise.all(promises);
     alert("Excel data uploaded successfully!");
@@ -112,18 +159,17 @@ const AddCourse = () => {
       return;
     }
 
-    const sectionRef = doc(
-      db,
-      "courses",
-      department,
-      "years",
-      year,
-      "sections",
-      section
-    );
+    const sectionRef = buildSectionRef(department, year, section);
     const courseCollection = collection(sectionRef, "courseDetails");
 
-    await addDoc(courseCollection, courseDetails);
+    const payload = {
+      ...courseDetails,
+      displayDepartment: department,
+      displayYear: year,
+      displaySection: section,
+    };
+
+    await addDoc(courseCollection, payload);
     alert("Manual data added successfully!");
     setFormData({
       department: "Computer Science & Engineering (Data Science)",
@@ -151,6 +197,17 @@ const AddCourse = () => {
       {/* Excel Upload Section */}
       <div className="mb-8">
         <h2 className="text-xl font-semibold mb-4">Upload Excel File</h2>
+        {/* Department selector for Excel import context */}
+        <select
+          name="department"
+          value={formData.department}
+          onChange={handleFormChange}
+          className="block mb-4 p-2 border rounded w-full"
+        >
+          {departmentOptions.map((dept) => (
+            <option key={dept} value={dept}>{dept}</option>
+          ))}
+        </select>
         <input
           type="file"
           accept=".xlsx, .xls"
@@ -171,21 +228,23 @@ const AddCourse = () => {
       <div>
         <h2 className="text-xl font-semibold mb-4">Add Course Manually</h2>
         <form onSubmit={handleFormSubmit} className="bg-white p-5 rounded shadow">
-          <input
-            type="text"
+          <select
             name="department"
             value={formData.department}
             onChange={handleFormChange}
-            placeholder="Department"
             className="block mb-3 p-2 border rounded w-full"
             required
-          />
+          >
+            {departmentOptions.map((dept) => (
+              <option key={dept} value={dept}>{dept}</option>
+            ))}
+          </select>
           <input
             type="text"
             name="year"
             value={formData.year}
             onChange={handleFormChange}
-            placeholder="Year"
+            placeholder="Year (e.g., III or III_DS_All_Sections)"
             className="block mb-3 p-2 border rounded w-full"
             required
           />
@@ -194,7 +253,7 @@ const AddCourse = () => {
             name="section"
             value={formData.section}
             onChange={handleFormChange}
-            placeholder="Section"
+            placeholder="Section (e.g., All_Sections)"
             className="block mb-3 p-2 border rounded w-full"
             required
           />

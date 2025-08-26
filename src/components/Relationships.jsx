@@ -1,11 +1,19 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { collection, getDocs, doc, writeBatch } from "firebase/firestore";
 import { db } from "../firebase";
+import {
+  studentsCollectionPath,
+  studentDocPath,
+  coursesCollectionPath,
+  courseDocPath,
+} from "../utils/pathBuilders";
 
 function Relationships() {
   const [students, setStudents] = useState([]);
   const [faculty, setFaculty] = useState([]);
   const [courses, setCourses] = useState([]);
+  // Use short department codes to match database layout
+  const [selectedDepartment, setSelectedDepartment] = useState("CSE_DS");
   const [selectedYear, setSelectedYear] = useState("");
   const [selectedSection, setSelectedSection] = useState("");
   const [selectedStudents, setSelectedStudents] = useState([]);
@@ -13,10 +21,25 @@ function Relationships() {
   const [selectedFaculty, setSelectedFaculty] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Fetch Data Based on Year and Section
+  // Fetch faculty for selected department
+  useEffect(() => {
+    const fetchFaculty = async () => {
+      if (!selectedDepartment) return;
+      try {
+        const snap = await getDocs(collection(db, `faculty/${selectedDepartment}/members`));
+        setFaculty(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      } catch (e) {
+        console.error("Error fetching faculty:", e);
+        setFaculty([]);
+      }
+    };
+    fetchFaculty();
+  }, [selectedDepartment]);
+
+  // Fetch Data Based on Department, Year and Section
   useEffect(() => {
     const fetchData = async () => {
-      if (!selectedYear || !selectedSection) {
+      if (!selectedDepartment || !selectedYear || !selectedSection) {
         console.log("Year or Section not selected yet.");
         return;
       }
@@ -26,53 +49,46 @@ function Relationships() {
       try {
         const normalizedSection = selectedSection.toUpperCase();
 
-        // Fetch students
-        const studentsSnapshot = await getDocs(
-          collection(db, `students/${selectedYear}/${normalizedSection}`)
-        );
+        const studentsPath = studentsCollectionPath(selectedDepartment, selectedYear, normalizedSection);
+        const coursesPath = coursesCollectionPath(selectedDepartment, selectedYear, normalizedSection);
+
+        const [studentsSnapshot, coursesSnapshot] = await Promise.all([
+          getDocs(collection(db, studentsPath)).catch(() => ({ docs: [] })),
+          getDocs(collection(db, coursesPath)).catch(() => ({ docs: [] })),
+        ]);
+
         const studentsData = studentsSnapshot.docs
-          .map((doc) => ({
-            id: doc.id,
-            ...doc.data(),
-          }))
-          .sort((a, b) => {
-            // Sort by rollNo
-            if (a.rollNo && b.rollNo) {
-              return a.rollNo.localeCompare(b.rollNo);
-            }
-            return 0;
-          });
+          .map((d) => ({ id: d.id, ...d.data() }))
+          .sort((a, b) => (a.rollNo && b.rollNo ? a.rollNo.localeCompare(b.rollNo) : 0));
         setStudents(studentsData);
 
-        // Fetch faculty
-        const facultySnapshot = await getDocs(collection(db, "faculty"));
-        const facultyData = facultySnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-        setFaculty(facultyData);
+        let coursesData = coursesSnapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
 
-        // Fetch courses
-        const coursesSnapshot = await getDocs(
-          collection(
-            db,
-            `courses/Computer Science & Engineering (Data Science)/years/${selectedYear}/sections/${normalizedSection}/courseDetails`
-          )
-        );
-        const coursesData = coursesSnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
+        // Fallback: try ALL_SECTIONS if specific section is empty
+        if (coursesData.length === 0 && normalizedSection !== "ALL_SECTIONS") {
+          const allSecSnap = await getDocs(
+            collection(db, coursesCollectionPath(selectedDepartment, selectedYear, "ALL_SECTIONS"))
+          ).catch(() => ({ docs: [] }));
+          coursesData = allSecSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        }
         setCourses(coursesData);
       } catch (error) {
         console.error("Error fetching data:", error);
+        // Backward compatibility for legacy student paths: students/{year}/{section}
+        try {
+          const legacyStudentsSnap = await getDocs(
+            collection(db, `students/${selectedYear}/${normalizedSection}`)
+          );
+          const legacyStudents = legacyStudentsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+          if (legacyStudents.length > 0) setStudents(legacyStudents);
+        } catch {}
       }
 
       setIsLoading(false);
     };
 
     fetchData();
-  }, [selectedYear, selectedSection]);
+  }, [selectedDepartment, selectedYear, selectedSection]);
 
   // Handle selecting or deselecting individual students
   const handleStudentSelection = (studentId) => {
@@ -109,7 +125,7 @@ function Relationships() {
       selectedStudents.forEach((studentId) => {
         const studentRef = doc(
           db,
-          `students/${selectedYear}/${selectedSection}/${studentId}`
+          studentDocPath(selectedDepartment, selectedYear, selectedSection, studentId)
         );
         const student = students.find((s) => s.id === studentId);
         if (student) {
@@ -121,7 +137,7 @@ function Relationships() {
       });
 
       // Update the faculty with the assigned course
-      const facultyRef = doc(db, `faculty/${selectedFaculty}`);
+      const facultyRef = doc(db, `faculty/${selectedDepartment}/members/${selectedFaculty}`);
       const facultyDoc = faculty.find((fac) => fac.id === selectedFaculty);
       if (facultyDoc) {
         const updatedFacultyCourses = facultyDoc.courses
@@ -133,7 +149,7 @@ function Relationships() {
       // Update the course with the selected students
       const courseRef = doc(
         db,
-        `courses/Computer Science & Engineering (Data Science)/years/${selectedYear}/sections/${selectedSection}/courseDetails/${selectedCourse}`
+        courseDocPath(selectedDepartment, selectedYear, selectedSection, selectedCourse)
       );
       batch.update(courseRef, {
         instructor: selectedFaculty,
@@ -165,6 +181,22 @@ function Relationships() {
         ) : (
           <div className="space-y-4 bg-white shadow-lg rounded-lg p-6">
             <div>
+              <h2 className="text-2xl font-semibold text-gray-700 mb-2">Select Department</h2>
+              <select
+                value={selectedDepartment}
+                onChange={(e) => setSelectedDepartment(e.target.value)}
+                className="w-full p-3 border border-gray-300 rounded-md"
+              >
+                <option value="CSE_DS">CSE_DS</option>
+                <option value="CSE">CSE</option>
+                <option value="IT">IT</option>
+                <option value="ECE">ECE</option>
+                <option value="EEE">EEE</option>
+                <option value="MECH">MECH</option>
+                <option value="CIVIL">CIVIL</option>
+              </select>
+            </div>
+            <div>
               <h2 className="text-2xl font-semibold text-gray-700 mb-2">Select Year</h2>
               <select
                 value={selectedYear}
@@ -186,6 +218,7 @@ function Relationships() {
                 className="w-full p-3 border border-gray-300 rounded-md"
               >
                 <option value="">-- Select a Section --</option>
+                <option value="ALL_SECTIONS">ALL_SECTIONS</option>
                 <option value="A">A</option>
                 <option value="B">B</option>
                 <option value="C">C</option>
