@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FaSave, FaUpload, FaUsers, FaCalendarAlt, FaMapMarkerAlt, FaMoneyBillWave, FaCheckCircle, FaTimes } from 'react-icons/fa';
+import { FaSave, FaUpload, FaUsers, FaCalendarAlt, FaMapMarkerAlt, FaMoneyBillWave, FaCheckCircle, FaTimes, FaUserTie, FaGraduationCap } from 'react-icons/fa';
 import { collection, addDoc, updateDoc, doc, serverTimestamp, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../firebase';
 import BulkImportEvents from '../BulkImportEvents';
@@ -25,7 +25,14 @@ const EventCreation = ({ onEventCreated, editingEvent, isEditing = false }) => {
     studentVolunteers: [],
     equipment: [],
     approvalStatus: 'pending',
-    status: 'draft'
+    status: 'draft',
+    // New fields
+    resourcePersonName: '',
+    coordinators: [],
+    academicYear: '',
+    eventType: '',
+    totalParticipants: '',
+    yearOfStudents: ''
   });
 
   const [facultyList, setFacultyList] = useState([]);
@@ -47,6 +54,36 @@ const EventCreation = ({ onEventCreated, editingEvent, isEditing = false }) => {
     'Competition',
     'Guest Lecture',
     'Other'
+  ];
+
+  const eventTypes = [
+    'Internal',
+    'External',
+    'Inter-University',
+    'National',
+    'International',
+    'Industry Collaboration',
+    'Research',
+    'Extension Activity',
+    'Other'
+  ];
+
+  const academicYears = [
+    '2023-24',
+    '2024-25',
+    '2025-26',
+    '2026-27',
+    '2027-28'
+  ];
+
+  const studentYears = [
+    '1st Year',
+    '2nd Year',
+    '3rd Year',
+    '4th Year',
+    'All Years',
+    'PG Students',
+    'PhD Students'
   ];
 
   const equipmentOptions = [
@@ -91,7 +128,14 @@ const EventCreation = ({ onEventCreated, editingEvent, isEditing = false }) => {
         studentVolunteers: editingEvent.studentVolunteers || [],
         equipment: editingEvent.equipment || [],
         approvalStatus: editingEvent.approvalStatus || 'pending',
-        status: editingEvent.status || 'draft'
+        status: editingEvent.status || 'draft',
+        // New fields
+        resourcePersonName: editingEvent.resourcePersonName || '',
+        coordinators: editingEvent.coordinators || [],
+        academicYear: editingEvent.academicYear || '',
+        eventType: editingEvent.eventType || '',
+        totalParticipants: editingEvent.totalParticipants || '',
+        yearOfStudents: editingEvent.yearOfStudents || ''
       });
     }
   }, [isEditing, editingEvent]);
@@ -221,7 +265,14 @@ const EventCreation = ({ onEventCreated, editingEvent, isEditing = false }) => {
           studentVolunteers: [],
           equipment: [],
           approvalStatus: 'pending',
-          status: 'draft'
+          status: 'draft',
+          // New fields
+          resourcePersonName: '',
+          coordinators: [],
+          academicYear: '',
+          eventType: '',
+          totalParticipants: '',
+          yearOfStudents: ''
         });
       }
 
@@ -329,6 +380,71 @@ const EventCreation = ({ onEventCreated, editingEvent, isEditing = false }) => {
                 <option value="">Select category</option>
                 {eventCategories.map(category => (
                   <option key={category} value={category}>{category}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Event Type
+              </label>
+              <select
+                name="eventType"
+                value={formData.eventType}
+                onChange={handleInputChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Select event type</option>
+                {eventTypes.map(type => (
+                  <option key={type} value={type}>{type}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Academic Year
+              </label>
+              <select
+                name="academicYear"
+                value={formData.academicYear}
+                onChange={handleInputChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Select academic year</option>
+                {academicYears.map(year => (
+                  <option key={year} value={year}>{year}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Resource Person Name
+              </label>
+              <input
+                type="text"
+                name="resourcePersonName"
+                value={formData.resourcePersonName}
+                onChange={handleInputChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Enter resource person name"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Year of Students
+              </label>
+              <select
+                name="yearOfStudents"
+                value={formData.yearOfStudents}
+                onChange={handleInputChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Select target year</option>
+                {studentYears.map(year => (
+                  <option key={year} value={year}>{year}</option>
                 ))}
               </select>
             </div>
@@ -488,6 +604,21 @@ const EventCreation = ({ onEventCreated, editingEvent, isEditing = false }) => {
               />
             </div>
 
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Total No. of Participants
+              </label>
+              <input
+                type="number"
+                name="totalParticipants"
+                value={formData.totalParticipants}
+                onChange={handleInputChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Enter total participants"
+                min="1"
+              />
+            </div>
+
             <div className="flex items-center space-x-4">
               <label className="flex items-center">
                 <input
@@ -551,6 +682,29 @@ const EventCreation = ({ onEventCreated, editingEvent, isEditing = false }) => {
                 onChange={(e) => {
                   const values = Array.from(e.target.selectedOptions, option => option.value);
                   handleArrayChange('facultyCoordinators', values);
+                }}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                size="4"
+              >
+                {facultyList.map(faculty => (
+                  <option key={faculty.id} value={faculty.id}>
+                    {faculty.name} - {faculty.department}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-500 mt-1">Hold Ctrl/Cmd to select multiple</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Coordinators
+              </label>
+              <select
+                multiple
+                value={formData.coordinators}
+                onChange={(e) => {
+                  const values = Array.from(e.target.selectedOptions, option => option.value);
+                  handleArrayChange('coordinators', values);
                 }}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 size="4"

@@ -54,7 +54,7 @@ import {
   faSearch,
   faFilter,
   faSort,
-  faEllipsisV,
+  faEllipsisVertical,
   faList
 } from "@fortawesome/free-solid-svg-icons";
 import { db } from "../../firebase";

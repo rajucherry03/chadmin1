@@ -31,6 +31,7 @@ import {
   FaChevronDown,
   FaChevronRight,
   FaChartLine,
+  FaBriefcase,
 } from "react-icons/fa";
 
 const AdminNavbar = () => {
@@ -180,6 +181,12 @@ const AdminNavbar = () => {
       title: "Event Management",
       icon: FaCalendarAlt,
       to: "/event-management",
+      links: [],
+    },
+    {
+      title: "Internship & Placement",
+      icon: FaBriefcase,
+      to: "/internship-placement",
       links: [],
     },
   ]), []);
