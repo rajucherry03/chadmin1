@@ -79,7 +79,7 @@ import {
   faLightbulb,
   faRocket,
   faTarget,
-  faArrowTrendingUp,
+  faArrowUp,
   faChartPie,
   faTable,
   faListUl,

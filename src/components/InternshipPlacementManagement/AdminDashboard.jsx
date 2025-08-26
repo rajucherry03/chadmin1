@@ -14,7 +14,7 @@ import {
   faThumbsDown, faHourglassHalf, faCheckDouble, faBan, faLock,
   faUnlock, faShieldAlt, faUserShield, faDatabase, faCloudUpload,
   faCloudDownload, faSync, faHistory, faArchive, faInbox, faSignOutAlt,
-  faArrowTrendingUp, faArrowTrendingDown, faEquals, faPercent, faRupeeSign
+  faArrowUp, faArrowDown, faEquals, faPercent, faRupeeSign
 } from '@fortawesome/free-solid-svg-icons';
 import internshipPlacementService from './services/internshipPlacementService';
 
@@ -293,7 +293,7 @@ const AdminDashboard = ({ userRole, stats }) => {
               <p className="text-sm font-medium text-gray-600">Total Internships</p>
               <p className="text-2xl font-bold text-gray-900">{dashboardStats.totalInternships}</p>
               <p className="text-xs text-green-600 flex items-center mt-1">
-                <FontAwesomeIcon icon={faArrowTrendingUp} className="mr-1" />
+                <FontAwesomeIcon icon={faArrowUp} className="mr-1" />
                 +12% from last month
               </p>
             </div>
@@ -346,7 +346,7 @@ const AdminDashboard = ({ userRole, stats }) => {
                 {formatCurrency(dashboardStats.averagePackage)}
               </p>
               <p className="text-xs text-green-600 flex items-center mt-1">
-                <FontAwesomeIcon icon={faArrowTrendingUp} className="mr-1" />
+                <FontAwesomeIcon icon={faArrowUp} className="mr-1" />
                 +8% from last year
               </p>
             </div>
