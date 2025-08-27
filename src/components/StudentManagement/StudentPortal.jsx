@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faUserCheck, faSave, faUndo, faUserPlus, faTimes, faSpinner, faSearch } from "@fortawesome/free-solid-svg-icons";
-import { db } from "../../firebase";
-import { doc, updateDoc, writeBatch, addDoc, collection, serverTimestamp, onSnapshot } from "firebase/firestore";
+import { faUserCheck, faSave, faUndo, faUserPlus, faTimes, faSpinner, faSearch, faTrash, faExclamationTriangle } from "@fortawesome/free-solid-svg-icons";
+import { db, auth } from "../../firebase";
+import { doc, updateDoc, writeBatch, addDoc, collection, serverTimestamp, onSnapshot, deleteDoc, getDoc } from "firebase/firestore";
+import { deleteUser } from "firebase/auth";
+import { deleteStudent, bulkDeleteStudents, cleanupStudentData } from "../../utils/firebaseAuthHelpers";
 
 const StudentPortal = ({ students = [], filters }) => {
   // Live fetch when Department/Year/Section are provided to ensure data shows from nested path
@@ -16,6 +18,9 @@ const StudentPortal = ({ students = [], filters }) => {
   const [isUpdating, setIsUpdating] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [bulkAction, setBulkAction] = useState("enable");
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [studentsToDelete, setStudentsToDelete] = useState([]);
 
   // Minimal defaults used when enabling access
   const defaultAccessLevel = "standard";
@@ -181,6 +186,149 @@ const StudentPortal = ({ students = [], filters }) => {
     }
   };
 
+  // Delete students from both Firestore and Firebase Auth
+  const deleteStudents = async (studentsToDelete) => {
+    if (studentsToDelete.length === 0) {
+      alert("Please select at least one student to delete.");
+      return;
+    }
+
+    setIsDeleting(true);
+
+    try {
+      // Prepare students data for bulk deletion
+      const studentsForDeletion = studentsToDelete.map(student => ({
+        id: student.id,
+        department: dept,
+        year: year,
+        section: section
+      }));
+
+      // Use the utility function for comprehensive deletion
+      const results = await bulkDeleteStudents(studentsForDeletion, false); // Set to true if you have Admin SDK access
+
+      // Show results
+      let message = `Deletion completed!\n\n`;
+      message += `✅ Successfully deleted: ${results.successful.length} students\n`;
+      
+      if (results.failed.length > 0) {
+        message += `❌ Failed to delete: ${results.failed.length} students\n`;
+        results.failed.forEach(failure => {
+          message += `   - ${failure.student.name || failure.student.id}: ${failure.error}\n`;
+        });
+      }
+
+      if (results.authDeletions.length > 0) {
+        message += `\n⚠️ ${results.authDeletions.length} students have Firebase Auth accounts that need manual deletion via Admin SDK:\n`;
+        results.authDeletions.forEach(auth => {
+          message += `   - ${auth.authUid} (${auth.email})\n`;
+        });
+      }
+
+      alert(message);
+
+      // Update local state
+      setClassStudents(prev => prev.filter(s => !studentsToDelete.find(ds => ds.id === s.id)));
+      setSelectedStudents([]);
+      setShowDeleteConfirm(false);
+      setStudentsToDelete([]);
+
+    } catch (error) {
+      console.error("Error deleting students:", error);
+      alert(`Error deleting students: ${error.message}`);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  // Enhanced delete with full cleanup
+  const deleteStudentsWithCleanup = async (studentsToDelete) => {
+    if (studentsToDelete.length === 0) {
+      alert("Please select at least one student to delete.");
+      return;
+    }
+
+    setIsDeleting(true);
+    const cleanupResults = [];
+
+    try {
+      for (const student of studentsToDelete) {
+        try {
+          const result = await cleanupStudentData(student.id, dept, year, section);
+          cleanupResults.push({
+            student: student,
+            result: result
+          });
+        } catch (error) {
+          cleanupResults.push({
+            student: student,
+            result: { success: false, error: error.message }
+          });
+        }
+      }
+
+      // Show detailed results
+      const successful = cleanupResults.filter(r => r.result.success);
+      const failed = cleanupResults.filter(r => !r.result.success);
+
+      let message = `Complete cleanup completed!\n\n`;
+      message += `✅ Successfully cleaned up: ${successful.length} students\n`;
+      
+      if (failed.length > 0) {
+        message += `❌ Failed to clean up: ${failed.length} students\n`;
+        failed.forEach(failure => {
+          message += `   - ${failure.student.name || failure.student.id}: ${failure.result.error}\n`;
+        });
+      }
+
+      // Show detailed cleanup results for successful deletions
+      if (successful.length > 0) {
+        message += `\n📊 Cleanup Details:\n`;
+        successful.forEach(success => {
+          const results = success.result.results;
+          message += `\n${success.student.name || success.student.id}:\n`;
+          if (results.studentDocument?.success) message += `   ✅ Student document deleted\n`;
+          if (results.portalAccess?.success) message += `   ✅ Portal access records deleted (${results.portalAccess.deletedCount})\n`;
+          if (results.attendance?.success) message += `   ✅ Attendance records deleted (${results.attendance.deletedCount})\n`;
+          if (results.grades?.success) message += `   ✅ Grades records deleted (${results.grades.deletedCount})\n`;
+          if (results.fees?.success) message += `   ✅ Fee records deleted (${results.fees.deletedCount})\n`;
+        });
+      }
+
+      alert(message);
+
+      // Update local state
+      setClassStudents(prev => prev.filter(s => !studentsToDelete.find(ds => ds.id === s.id)));
+      setSelectedStudents([]);
+      setShowDeleteConfirm(false);
+      setStudentsToDelete([]);
+
+    } catch (error) {
+      console.error("Error during cleanup:", error);
+      alert(`Error during cleanup: ${error.message}`);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  // Confirm delete action
+  const confirmDelete = () => {
+    if (selectedStudents.length === 0) {
+      alert("Please select at least one student to delete.");
+      return;
+    }
+
+    const studentsToDelete = classStudents.filter(s => selectedStudents.includes(s.id));
+    setStudentsToDelete(studentsToDelete);
+    setShowDeleteConfirm(true);
+  };
+
+  // Cancel delete confirmation
+  const cancelDelete = () => {
+    setShowDeleteConfirm(false);
+    setStudentsToDelete([]);
+  };
+
   // Simple filtered view of loaded students
   const visibleStudents = classStudents.filter(s => {
     const name = (s.name || `${s.firstName || ''} ${s.lastName || ''}`).toLowerCase();
@@ -330,7 +478,7 @@ const StudentPortal = ({ students = [], filters }) => {
         <div className="bg-white rounded-lg shadow-sm p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Bulk Actions</h3>
           
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-4 flex-wrap gap-4">
             <select
               value={bulkAction}
               onChange={(e) => setBulkAction(e.target.value)}
@@ -348,6 +496,80 @@ const StudentPortal = ({ students = [], filters }) => {
               <FontAwesomeIcon icon={isUpdating ? faSpinner : faSave} className={isUpdating ? 'animate-spin' : ''} />
               <span>{isUpdating ? 'Updating...' : 'Apply Changes'}</span>
             </button>
+
+            <button
+              onClick={confirmDelete}
+              disabled={isDeleting}
+              className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2 disabled:opacity-50"
+            >
+              <FontAwesomeIcon icon={isDeleting ? faSpinner : faTrash} className={isDeleting ? 'animate-spin' : ''} />
+              <span>{isDeleting ? 'Deleting...' : 'Delete Students'}</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center space-x-3 mb-4">
+              <div className="bg-red-100 p-2 rounded-lg">
+                <FontAwesomeIcon icon={faExclamationTriangle} className="text-red-600 text-lg" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Confirm Deletion</h3>
+                <p className="text-sm text-gray-600">This action cannot be undone</p>
+              </div>
+            </div>
+            
+            <div className="mb-4">
+              <p className="text-sm text-gray-700 mb-2">
+                Are you sure you want to delete {studentsToDelete.length} student{studentsToDelete.length > 1 ? 's' : ''}?
+              </p>
+              <div className="max-h-32 overflow-y-auto bg-gray-50 p-2 rounded">
+                {studentsToDelete.map(student => (
+                  <div key={student.id} className="text-sm text-gray-600 py-1">
+                    • {student.name || `${student.firstName || ''} ${student.lastName || ''}`.trim()} ({student.rollNo})
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="text-sm text-gray-600 mb-4 p-3 bg-yellow-50 rounded-lg">
+              <p className="font-medium text-yellow-800 mb-1">⚠️ Important:</p>
+              <ul className="list-disc list-inside space-y-1 text-yellow-700">
+                <li>Student data will be permanently deleted from Firestore</li>
+                <li>Portal access records will be removed</li>
+                <li>Firebase Auth accounts will need manual deletion via Admin SDK</li>
+                <li>This action cannot be undone</li>
+              </ul>
+            </div>
+
+            <div className="flex space-x-3">
+              <button
+                onClick={cancelDelete}
+                className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded-lg"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => deleteStudents(studentsToDelete)}
+                disabled={isDeleting}
+                className="flex-1 bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg flex items-center justify-center space-x-2 disabled:opacity-50"
+              >
+                <FontAwesomeIcon icon={isDeleting ? faSpinner : faTrash} className={isDeleting ? 'animate-spin' : ''} />
+                <span>{isDeleting ? 'Deleting...' : 'Delete Students'}</span>
+              </button>
+              <button
+                onClick={() => deleteStudentsWithCleanup(studentsToDelete)}
+                disabled={isDeleting}
+                className="flex-1 bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg flex items-center justify-center space-x-2 disabled:opacity-50"
+              >
+                <FontAwesomeIcon icon={isDeleting ? faSpinner : faTrash} className={isDeleting ? 'animate-spin' : ''} />
+                <span>{isDeleting ? 'Cleaning...' : 'Full Cleanup'}</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

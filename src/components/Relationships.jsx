@@ -26,6 +26,44 @@ function Relationships() {
   const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
+  // Normalize student fields from heterogeneous sources
+  const normalizeStudent = (raw, id, path) => {
+    const data = raw || {};
+    const rollCandidates = [
+      data.rollNo,
+      data.rollno,
+      data.RollNo,
+      data.Roll,
+      data.roll,
+      data.regNo,
+      data.RegNo,
+      data.registrationNo,
+      data.registrationNumber,
+      data.admissionNo,
+      data.hallTicket,
+      data.hallticket,
+      data.searchableRollNo,
+      data.searchableRollno,
+      data.studentId,
+      data.student_id,
+    ];
+    const nameCandidates = [
+      data.studentName,
+      data.name,
+      data.fullName,
+      data.full_name,
+      data.displayName,
+      data.student_name,
+      data.shortName,
+      data.searchableName,
+      data.firstName && data.lastName ? `${data.firstName} ${data.lastName}`.trim() : undefined,
+      data.first_name && data.last_name ? `${data.first_name} ${data.last_name}`.trim() : undefined,
+    ];
+    const rollNo = rollCandidates.find(v => typeof v === 'string' && v.trim().length > 0) || id;
+    const studentName = nameCandidates.find(v => typeof v === 'string' && v.trim().length > 0);
+    return { id, _path: path, rollNo, studentName, ...data };
+  };
+
   // Natural sort by roll number with graceful fallbacks
   const compareByRollNo = (a, b) => {
     const ar = (a.rollNo || "").toString();
@@ -93,30 +131,35 @@ function Relationships() {
           : coursesCollectionPath(selectedDepartment, selectedYear, "ALL_SECTIONS");
         console.log("Fetching courses from:", coursesPath);
 
-        // Fetch students with variants: try multiple possible paths until we find data
+        // Fetch students with variants: evaluate all variants and choose the richest data
         let studentsData = [];
         const variantPaths = [studentsPath, ...possibleStudentsCollectionPaths(selectedDepartment, selectedYear, normalizedSection)];
         const seenPaths = new Set();
+        let best = { score: -1, data: [] };
         for (const path of variantPaths) {
           if (seenPaths.has(path)) continue;
           seenPaths.add(path);
           try {
             const snap = await getDocs(collection(db, path));
             if (snap && snap.size > 0) {
-              const list = snap.docs.map((d) => ({ id: d.id, _path: `${path}/${d.id}`, ...d.data() }));
-              studentsData = list;
-              break; // Use the first non-empty variant
+              const list = snap.docs.map((d) => normalizeStudent(d.data(), d.id, `${path}/${d.id}`));
+              // Score by presence of real rollNos and names
+              const score = list.reduce((acc, s) => acc + (s.rollNo && s.rollNo !== s.id ? 1 : 0) + (s.studentName ? 1 : 0), 0);
+              if (score > best.score) best = { score, data: list };
             }
           } catch (_) {
             // ignore and try next variant
           }
+        }
+        if (best.score >= 0) {
+          studentsData = best.data;
         }
         // As a last resort, try legacy structure: students/{year}/{section}
         if (studentsData.length === 0) {
           try {
             const legacySnap = await getDocs(collection(db, `students/${selectedYear}/${normalizedSection}`));
             if (legacySnap && legacySnap.size > 0) {
-              studentsData = legacySnap.docs.map((d) => ({ id: d.id, _path: `students/${selectedYear}/${normalizedSection}/${d.id}`, ...d.data() }));
+              studentsData = legacySnap.docs.map((d) => normalizeStudent(d.data(), d.id, `students/${selectedYear}/${normalizedSection}/${d.id}`));
             }
           } catch (_) {}
         }

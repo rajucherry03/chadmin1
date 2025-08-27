@@ -2,11 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
 import { collection, getDocs, getDoc, doc, updateDoc, deleteDoc, writeBatch, setDoc } from 'firebase/firestore';
 import { FaCalendarAlt, FaSearch, FaEdit, FaTrash, FaSave, FaTimes, FaClock, FaMapMarkerAlt, FaUserTie, FaBook } from 'react-icons/fa';
-import { coursesCollectionPath, courseDocPath } from '../utils/pathBuilders';
+import { coursesCollectionPath, courseDocPath, coursesCollectionPathYearSem, courseDocPathYearSem } from '../utils/pathBuilders';
 
 const WeeklyTimetable = () => {
   const [department, setDepartment] = useState('CSE_DS');
   const [year, setYear] = useState('');
+  const [semesterKey, setSemesterKey] = useState(''); // e.g., II_4
   const [section, setSection] = useState('');
   const [timetable, setTimetable] = useState([]);
   const [courseMap, setCourseMap] = useState({});
@@ -38,7 +39,7 @@ const WeeklyTimetable = () => {
       const courseIds = new Set(timetableData.map((entry) => entry.courseId));
       const facultyIds = new Set(timetableData.map((entry) => entry.facultyId));
 
-      const fetchedCourses = await fetchCourseDetails(courseIds, department, year, section);
+      const fetchedCourses = await fetchCourseDetails(courseIds, department, year, section, semesterKey);
 
       const fetchedFaculties = {};
       await Promise.all(
@@ -61,7 +62,7 @@ const WeeklyTimetable = () => {
       setCourseMap(fetchedCourses);
       setFacultyMap(fetchedFaculties);
       // Ensure attendance sessions are generated for this week
-      await ensureAttendanceForCurrentWeek(timetableData, department, year, section, fetchedCourses, fetchedFaculties);
+      await ensureAttendanceForCurrentWeek(timetableData, department, year, section, fetchedCourses, fetchedFaculties, semesterKey);
     } catch (error) {
       console.error('Error fetching timetable:', error.message);
       alert('Failed to fetch timetable. Please try again.');
@@ -70,13 +71,23 @@ const WeeklyTimetable = () => {
     }
   };
 
-  const fetchCourseDetails = async (courseIds, department, year, section) => {
+  const fetchCourseDetails = async (courseIds, department, year, section, semKey) => {
     const fetchedCourses = {};
 
     await Promise.all(
       [...courseIds].map(async (courseId) => {
         if (!courseId) return;
-        // Prefer section-specific course doc
+        if (semKey) {
+          // New structure by year_sem
+          const ysRef = doc(db, courseDocPathYearSem(department, semKey.toUpperCase(), courseId));
+          const ysSnap = await getDoc(ysRef);
+          if (ysSnap.exists()) {
+            const data = ysSnap.data();
+            fetchedCourses[courseId] = data.courseName || data.title || courseId;
+            return;
+          }
+        }
+        // Prefer section-specific course doc (legacy per-section)
         const sectionCourseRef = doc(db, courseDocPath(department, year, section.toUpperCase(), courseId));
         const sectionCourseSnap = await getDoc(sectionCourseRef);
         if (sectionCourseSnap.exists()) {
@@ -84,7 +95,7 @@ const WeeklyTimetable = () => {
           fetchedCourses[courseId] = data.courseName || data.title || courseId;
           return;
         }
-        // Fallback to ALL_SECTIONS catalog
+        // Fallback to ALL_SECTIONS catalog (legacy per-year)
         const allPath = coursesCollectionPath(department, year, 'ALL_SECTIONS');
         const fallbackRef = doc(db, allPath, courseId);
         const fbSnap = await getDoc(fallbackRef);
@@ -124,7 +135,7 @@ const WeeklyTimetable = () => {
     return `${y}-${m}-${d}`;
   };
 
-  const ensureAttendanceForCurrentWeek = async (entries, department, year, section, courseNames, facultyNames) => {
+  const ensureAttendanceForCurrentWeek = async (entries, department, year, section, courseNames, facultyNames, semKey) => {
     if (!Array.isArray(entries) || entries.length === 0) return;
     const weekDates = getWeekDates();
     const batch = writeBatch(db);
@@ -144,9 +155,16 @@ const WeeklyTimetable = () => {
       // Try to fetch students linked to this course and section from course doc
       let studentIds = [];
       try {
-        const courseRef = doc(db, courseDocPath(department, year, section.toUpperCase(), courseId));
-        const courseSnap = await getDoc(courseRef);
-        if (courseSnap.exists()) {
+        let courseSnap = null;
+        if (semKey) {
+          const ysRef = doc(db, courseDocPathYearSem(department, semKey.toUpperCase(), courseId));
+          courseSnap = await getDoc(ysRef);
+        }
+        if (!courseSnap || !courseSnap.exists()) {
+          const courseRef = doc(db, courseDocPath(department, year, section.toUpperCase(), courseId));
+          courseSnap = await getDoc(courseRef);
+        }
+        if (courseSnap && courseSnap.exists()) {
           const data = courseSnap.data();
           const bySec = data.studentsBySection || {};
           const list = bySec[section.toUpperCase()];
@@ -304,6 +322,24 @@ const WeeklyTimetable = () => {
                 <option value="II">Second Year</option>
                 <option value="III">Third Year</option>
                 <option value="IV">Fourth Year</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Semester (optional)</label>
+              <select
+                value={semesterKey}
+                onChange={(e) => setSemesterKey(e.target.value)}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white"
+              >
+                <option value="">Use legacy per-year</option>
+                <option value="I_1">I_1</option>
+                <option value="I_2">I_2</option>
+                <option value="II_3">II_3</option>
+                <option value="II_4">II_4</option>
+                <option value="III_5">III_5</option>
+                <option value="III_6">III_6</option>
+                <option value="IV_7">IV_7</option>
+                <option value="IV_8">IV_8</option>
               </select>
             </div>
             

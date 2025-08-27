@@ -5,7 +5,7 @@ import {
   updateProfile,
   signInWithEmailAndPassword
 } from 'firebase/auth';
-import { doc, setDoc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc, serverTimestamp, writeBatch, query, collection, where, getDocs } from 'firebase/firestore';
 import { db, workerAuth } from '../firebase';
 
 /**
@@ -340,5 +340,278 @@ export const checkStudentExists = async (rollNo, department, year, section) => {
       exists: false,
       error: error.message
     };
+  }
+};
+
+/**
+ * Delete student completely from both Firestore and Firebase Auth
+ * @param {string} studentId - Student document ID
+ * @param {string} department - Department
+ * @param {string} year - Year
+ * @param {string} section - Section
+ * @param {boolean} deleteAuthUser - Whether to delete Firebase Auth user (requires Admin SDK)
+ * @returns {Object} Result object with success status and details
+ */
+export const deleteStudent = async (studentId, department, year, section, deleteAuthUser = false) => {
+  try {
+    const deptShort = getDepartmentShortName(department);
+    const sanitizedDept = deptShort.replace(/[^A-Z0-9_]/gi, '');
+    const sanitizedYear = year.replace(/[^A-Z0-9]/gi, '');
+    const sanitizedSection = section.replace(/[^A-Z0-9]/gi, '');
+    const groupKey = `${sanitizedYear}-${sanitizedSection}`;
+    
+    // Get student document first
+    const studentRef = doc(db, `students/${sanitizedDept}/${groupKey}`, studentId);
+    const studentDoc = await getDoc(studentRef);
+    
+    if (!studentDoc.exists()) {
+      return { success: false, error: 'Student not found' };
+    }
+    
+    const studentData = studentDoc.data();
+    const batch = writeBatch(db);
+    
+    // 1. Delete main student document
+    batch.delete(studentRef);
+    
+    // 2. Delete from studentsByUid collection if authUid exists
+    if (studentData.authUid) {
+      const byUidRef = doc(db, 'studentsByUid', studentData.authUid);
+      batch.delete(byUidRef);
+    }
+    
+    // 3. Delete from studentPortalAccess collection
+    // Note: This would require a query to find the document by studentId
+    // For now, we'll handle this separately if needed
+    
+    // 4. Delete from any other related collections
+    // - Attendance records
+    // - Grades records
+    // - Fee records
+    // - etc.
+    
+    // Commit the batch
+    await batch.commit();
+    
+    // 5. Handle Firebase Auth deletion (requires Admin SDK)
+    let authDeletionResult = null;
+    if (deleteAuthUser && studentData.authUid) {
+      try {
+        // This would require Firebase Admin SDK on the backend
+        // For now, we'll return the authUid for manual deletion
+        authDeletionResult = {
+          authUid: studentData.authUid,
+          email: studentData.email,
+          requiresAdminSDK: true,
+          message: 'Firebase Auth user needs to be deleted using Admin SDK'
+        };
+      } catch (error) {
+        console.error('Error deleting Firebase Auth user:', error);
+        authDeletionResult = {
+          error: error.message,
+          authUid: studentData.authUid
+        };
+      }
+    }
+    
+    return {
+      success: true,
+      message: 'Student deleted successfully',
+      deletedStudent: {
+        id: studentId,
+        name: studentData.studentName || studentData.name || `${studentData.firstName || ''} ${studentData.lastName || ''}`.trim(),
+        rollNo: studentData.rollNo,
+        authUid: studentData.authUid,
+        email: studentData.email
+      },
+      authDeletion: authDeletionResult
+    };
+    
+  } catch (error) {
+    console.error('Delete student error:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Bulk delete multiple students
+ * @param {Array} students - Array of student objects with id, department, year, section
+ * @param {boolean} deleteAuthUsers - Whether to delete Firebase Auth users
+ * @returns {Object} Result object with success status and details
+ */
+export const bulkDeleteStudents = async (students, deleteAuthUsers = false) => {
+  const results = {
+    successful: [],
+    failed: [],
+    authDeletions: []
+  };
+  
+  for (const student of students) {
+    try {
+      const result = await deleteStudent(
+        student.id, 
+        student.department, 
+        student.year, 
+        student.section, 
+        deleteAuthUsers
+      );
+      
+      if (result.success) {
+        results.successful.push(result.deletedStudent);
+        if (result.authDeletion) {
+          results.authDeletions.push(result.authDeletion);
+        }
+      } else {
+        results.failed.push({
+          student: student,
+          error: result.error
+        });
+      }
+    } catch (error) {
+      results.failed.push({
+        student: student,
+        error: error.message
+      });
+    }
+  }
+  
+  return results;
+};
+
+/**
+ * Delete student portal access records
+ * @param {string} studentId - Student ID
+ * @returns {Object} Result object with success status
+ */
+export const deleteStudentPortalAccess = async (studentId) => {
+  try {
+    // Query for portal access records by studentId
+    const portalAccessQuery = query(
+      collection(db, 'studentPortalAccess'),
+      where('studentId', '==', studentId)
+    );
+    
+    const querySnapshot = await getDocs(portalAccessQuery);
+    const batch = writeBatch(db);
+    
+    querySnapshot.docs.forEach(doc => {
+      batch.delete(doc.ref);
+    });
+    
+    await batch.commit();
+    
+    return {
+      success: true,
+      message: `Deleted ${querySnapshot.docs.length} portal access records`,
+      deletedCount: querySnapshot.docs.length
+    };
+  } catch (error) {
+    console.error('Delete portal access error:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Clean up all student-related data
+ * @param {string} studentId - Student ID
+ * @param {string} department - Department
+ * @param {string} year - Year
+ * @param {string} section - Section
+ * @returns {Object} Result object with cleanup details
+ */
+export const cleanupStudentData = async (studentId, department, year, section) => {
+  const cleanupResults = {
+    studentDocument: null,
+    portalAccess: null,
+    attendance: null,
+    grades: null,
+    fees: null,
+    otherRecords: null
+  };
+  
+  try {
+    // 1. Delete main student document
+    const studentResult = await deleteStudent(studentId, department, year, section, false);
+    cleanupResults.studentDocument = studentResult;
+    
+    // 2. Delete portal access records
+    const portalResult = await deleteStudentPortalAccess(studentId);
+    cleanupResults.portalAccess = portalResult;
+    
+    // 3. Delete attendance records (if they exist)
+    try {
+      const attendanceQuery = query(
+        collection(db, 'attendance'),
+        where('studentId', '==', studentId)
+      );
+      const attendanceSnapshot = await getDocs(attendanceQuery);
+      const attendanceBatch = writeBatch(db);
+      
+      attendanceSnapshot.docs.forEach(doc => {
+        attendanceBatch.delete(doc.ref);
+      });
+      
+      await attendanceBatch.commit();
+      cleanupResults.attendance = {
+        success: true,
+        deletedCount: attendanceSnapshot.docs.length
+      };
+    } catch (error) {
+      cleanupResults.attendance = { success: false, error: error.message };
+    }
+    
+    // 4. Delete grades records (if they exist)
+    try {
+      const gradesQuery = query(
+        collection(db, 'grades'),
+        where('studentId', '==', studentId)
+      );
+      const gradesSnapshot = await getDocs(gradesQuery);
+      const gradesBatch = writeBatch(db);
+      
+      gradesSnapshot.docs.forEach(doc => {
+        gradesBatch.delete(doc.ref);
+      });
+      
+      await gradesBatch.commit();
+      cleanupResults.grades = {
+        success: true,
+        deletedCount: gradesSnapshot.docs.length
+      };
+    } catch (error) {
+      cleanupResults.grades = { success: false, error: error.message };
+    }
+    
+    // 5. Delete fee records (if they exist)
+    try {
+      const feesQuery = query(
+        collection(db, 'fees'),
+        where('studentId', '==', studentId)
+      );
+      const feesSnapshot = await getDocs(feesQuery);
+      const feesBatch = writeBatch(db);
+      
+      feesSnapshot.docs.forEach(doc => {
+        feesBatch.delete(doc.ref);
+      });
+      
+      await feesBatch.commit();
+      cleanupResults.fees = {
+        success: true,
+        deletedCount: feesSnapshot.docs.length
+      };
+    } catch (error) {
+      cleanupResults.fees = { success: false, error: error.message };
+    }
+    
+    return {
+      success: true,
+      message: 'Student data cleanup completed',
+      results: cleanupResults
+    };
+    
+  } catch (error) {
+    console.error('Cleanup student data error:', error);
+    return { success: false, error: error.message, results: cleanupResults };
   }
 };
