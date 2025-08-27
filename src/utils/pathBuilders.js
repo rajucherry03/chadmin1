@@ -39,6 +39,17 @@ export const courseDocPath = (department, year, section, courseId) => {
   return `${coursesCollectionPath(department, year, section)}/${courseId}`;
 };
 
+// New structure: courses/{department}/year_sem/{YY_S}/courseDetails
+export const coursesCollectionPathYearSem = (department, yearSem) => {
+  const dept = department;
+  const ys = (yearSem || "").toString().toUpperCase();
+  return `courses/${dept}/year_sem/${ys}/courseDetails`;
+};
+
+export const courseDocPathYearSem = (department, yearSem, courseId) => {
+  return `${coursesCollectionPathYearSem(department, yearSem)}/${courseId}`;
+};
+
 // Variants helpers to support legacy structures
 // Generate possible department identifiers, e.g., CSE_DS -> [CSE_DS, CSEDS]
 export const getDepartmentVariants = (department) => {

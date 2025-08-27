@@ -5,13 +5,14 @@ import { doc, collection, addDoc } from "firebase/firestore";
 
 const AddCourse = () => {
   const [excelData, setExcelData] = useState([]);
+  const [uploadSemester, setUploadSemester] = useState("");
   const [formData, setFormData] = useState({
     department: "Computer Science & Engineering (Data Science)",
     courseName: "",
     courseCode: "",
     instructor: "",
     year: "",
-    section: "",
+    semester: "",
     actualHours: "",
     deviationReasons: "",
     leavesAvailed: "",
@@ -40,6 +41,9 @@ const AddCourse = () => {
     "Computer Science and Engineering (Artificial Intelligence and Machine Learning)",
     "Computer Science and Engineering (Networks)",
   ];
+
+  // Semester options (1 to 8)
+  const semesterOptions = ["1", "2", "3", "4", "5", "6", "7", "8"];
 
   // Compact key mapping for departments
   const departmentKeyMap = {
@@ -73,7 +77,8 @@ const AddCourse = () => {
     const firstPart = raw.includes("_") ? raw.split("_")[0] : raw;
     return toKey(firstPart);
   };
-  const getSectionKey = (section) => toKey(section || "All_Sections");
+  const getSemesterKey = (semester) => toKey(semester || "");
+  const getPeriodKey = (year, semester) => `${getYearKey(year)}_${getSemesterKey(semester)}`;
 
   // Handle Excel file upload
   const handleFileUpload = (e) => {
@@ -86,24 +91,25 @@ const AddCourse = () => {
       const sheetName = workbook.SheetNames[0];
       const sheet = workbook.Sheets[sheetName];
 
-      // Expect headers: Year, Course Code, Course Name
+      // Expect headers: Year, Semester, Course Code, Course Name
       const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
 
       const mappedData = rows
         .map((row, index) => {
           const year = row["Year"] || "";
+          const semester = row["Semester"] || uploadSemester || "";
           const courseCode = row["Course Code"] || "";
           const courseName = row["Course Name"] || "";
 
           const mappedRow = {
             department: formData.department || "",
             year,
-            section: "All_Sections",
+            semester,
             courseName,
             courseCode,
           };
 
-          if (!mappedRow.department || !mappedRow.year || !mappedRow.courseCode || !mappedRow.courseName) {
+          if (!mappedRow.department || !mappedRow.year || !mappedRow.semester || !mappedRow.courseCode || !mappedRow.courseName) {
             console.warn(`Invalid row at index ${index}:`, mappedRow);
             return null;
           }
@@ -118,24 +124,45 @@ const AddCourse = () => {
     reader.readAsArrayBuffer(file);
   };
 
-  const buildSectionRef = (deptName, yearName, sectionName) => {
+  const downloadExcelTemplate = () => {
+    const headers = [
+      [
+        "Year",
+        "Semester",
+        "Course Code",
+        "Course Name",
+      ],
+      [
+        "III",
+        "1",
+        "CS301",
+        "Operating Systems",
+      ],
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(headers);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Template");
+    XLSX.writeFile(wb, "course_template_semester.xlsx");
+  };
+
+  const buildPeriodRef = (deptName, yearName, semesterName) => {
     const deptKey = getDepartmentKey(deptName);
-    const yearKey = getYearKey(yearName);
-    const sectionKey = getSectionKey(sectionName);
-    return doc(db, "courses", deptKey, "years", yearKey, "sections", sectionKey);
+    const periodKey = getPeriodKey(yearName, semesterName);
+    return doc(db, "courses", deptKey, "year_sem", periodKey);
   };
 
   const uploadExcelDataToFirebase = async () => {
     const promises = excelData.map(async (row) => {
-      const sectionRef = buildSectionRef(row.department, row.year, row.section);
-      const courseCollection = collection(sectionRef, "courseDetails");
+      const periodRef = buildPeriodRef(row.department, row.year, row.semester);
+      const courseCollection = collection(periodRef, "courseDetails");
       const payload = {
         courseName: row.courseName,
         courseCode: row.courseCode,
         // Store the human-readable context as well
         displayDepartment: row.department,
         displayYear: row.year,
-        displaySection: row.section,
+        displaySemester: row.semester,
+        displaySection: "All_Sections",
       };
       await addDoc(courseCollection, payload);
     });
@@ -152,21 +179,22 @@ const AddCourse = () => {
 
   const handleFormSubmit = async (e) => {
     e.preventDefault();
-    const { department, year, section, ...courseDetails } = formData;
+    const { department, year, semester, ...courseDetails } = formData;
 
-    if (!department || !year || !section) {
-      alert("Please fill in all required fields (department, year, section)");
+    if (!department || !year || !semester) {
+      alert("Please fill in all required fields (department, year, semester)");
       return;
     }
 
-    const sectionRef = buildSectionRef(department, year, section);
-    const courseCollection = collection(sectionRef, "courseDetails");
+    const periodRef = buildPeriodRef(department, year, semester);
+    const courseCollection = collection(periodRef, "courseDetails");
 
     const payload = {
       ...courseDetails,
       displayDepartment: department,
       displayYear: year,
-      displaySection: section,
+      displaySemester: semester,
+      displaySection: "All_Sections",
     };
 
     await addDoc(courseCollection, payload);
@@ -174,7 +202,7 @@ const AddCourse = () => {
     setFormData({
       department: "Computer Science & Engineering (Data Science)",
       year: "",
-      section: "",
+      semester: "",
       courseName: "",
       courseCode: "",
       instructor: "",
@@ -208,12 +236,30 @@ const AddCourse = () => {
             <option key={dept} value={dept}>{dept}</option>
           ))}
         </select>
+        <select
+          name="uploadSemester"
+          value={uploadSemester}
+          onChange={(e) => setUploadSemester(e.target.value)}
+          className="block mb-4 p-2 border rounded w-full"
+        >
+          <option value="">Optional: Select Semester for rows without one</option>
+          {semesterOptions.map((sem) => (
+            <option key={sem} value={sem}>{`Semester ${sem}`}</option>
+          ))}
+        </select>
         <input
           type="file"
           accept=".xlsx, .xls"
           onChange={handleFileUpload}
           className="block mb-4 border p-2 rounded w-full"
         />
+        <button
+          type="button"
+          onClick={downloadExcelTemplate}
+          className="bg-gray-700 text-white px-4 py-2 rounded mb-4"
+        >
+          Download Excel Template
+        </button>
         {excelData.length > 0 && (
           <button
             onClick={uploadExcelDataToFirebase}
@@ -244,19 +290,23 @@ const AddCourse = () => {
             name="year"
             value={formData.year}
             onChange={handleFormChange}
-            placeholder="Year (e.g., III or III_DS_All_Sections)"
+            placeholder="Year (e.g., III)"
             className="block mb-3 p-2 border rounded w-full"
             required
           />
-          <input
-            type="text"
-            name="section"
-            value={formData.section}
+          <select
+            name="semester"
+            value={formData.semester}
             onChange={handleFormChange}
-            placeholder="Section (e.g., All_Sections)"
             className="block mb-3 p-2 border rounded w-full"
             required
-          />
+          >
+            <option value="" disabled>Select Semester</option>
+            {semesterOptions.map((sem) => (
+              <option key={sem} value={sem}>{`Semester ${sem}`}</option>
+            ))}
+          </select>
+          {/* Sections removed; defaulting to All_Sections */}
           <input
             type="text"
             name="courseName"

@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
-import { collection, getDocs, getDoc, doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, getDocs, getDoc, doc, updateDoc, deleteDoc, writeBatch, setDoc } from 'firebase/firestore';
 import { FaCalendarAlt, FaSearch, FaEdit, FaTrash, FaSave, FaTimes, FaClock, FaMapMarkerAlt, FaUserTie, FaBook } from 'react-icons/fa';
+import { coursesCollectionPath, courseDocPath } from '../utils/pathBuilders';
 
 const WeeklyTimetable = () => {
+  const [department, setDepartment] = useState('CSE_DS');
   const [year, setYear] = useState('');
   const [section, setSection] = useState('');
   const [timetable, setTimetable] = useState([]);
@@ -14,7 +16,7 @@ const WeeklyTimetable = () => {
   const [showEditModal, setShowEditModal] = useState(false);
 
   const fetchTimetable = async () => {
-    if (!year || !section) {
+    if (!department || !year || !section) {
       alert('Please select both year and section.');
       return;
     }
@@ -36,14 +38,19 @@ const WeeklyTimetable = () => {
       const courseIds = new Set(timetableData.map((entry) => entry.courseId));
       const facultyIds = new Set(timetableData.map((entry) => entry.facultyId));
 
-      const fetchedCourses = await fetchCourseDetails(courseIds, year, section);
+      const fetchedCourses = await fetchCourseDetails(courseIds, department, year, section);
 
       const fetchedFaculties = {};
       await Promise.all(
         [...facultyIds].map(async (facultyId) => {
-          const facultyDoc = await getDoc(doc(db, 'faculty', facultyId));
-          if (facultyDoc.exists()) {
-            fetchedFaculties[facultyId] = facultyDoc.data().name;
+          if (!facultyId) return;
+          const facRef = doc(db, `faculty/${department}/members/${facultyId}`);
+          const facSnap = await getDoc(facRef);
+          if (facSnap.exists()) {
+            const data = facSnap.data();
+            fetchedFaculties[facultyId] = data.name || data.fullName || facultyId;
+          } else {
+            fetchedFaculties[facultyId] = facultyId;
           }
         })
       );
@@ -53,6 +60,8 @@ const WeeklyTimetable = () => {
 
       setCourseMap(fetchedCourses);
       setFacultyMap(fetchedFaculties);
+      // Ensure attendance sessions are generated for this week
+      await ensureAttendanceForCurrentWeek(timetableData, department, year, section, fetchedCourses, fetchedFaculties);
     } catch (error) {
       console.error('Error fetching timetable:', error.message);
       alert('Failed to fetch timetable. Please try again.');
@@ -61,25 +70,116 @@ const WeeklyTimetable = () => {
     }
   };
 
-  const fetchCourseDetails = async (courseIds, year, section) => {
+  const fetchCourseDetails = async (courseIds, department, year, section) => {
     const fetchedCourses = {};
 
     await Promise.all(
       [...courseIds].map(async (courseId) => {
-        const courseDoc = await getDoc(
-          doc(
-            db,
-            `/courses/Computer Science & Engineering (Data Science)/years/${year}/sections/${section}/courseDetails`,
-            courseId
-          )
-        );
-        if (courseDoc.exists()) {
-          fetchedCourses[courseId] = courseDoc.data().courseName;
+        if (!courseId) return;
+        // Prefer section-specific course doc
+        const sectionCourseRef = doc(db, courseDocPath(department, year, section.toUpperCase(), courseId));
+        const sectionCourseSnap = await getDoc(sectionCourseRef);
+        if (sectionCourseSnap.exists()) {
+          const data = sectionCourseSnap.data();
+          fetchedCourses[courseId] = data.courseName || data.title || courseId;
+          return;
+        }
+        // Fallback to ALL_SECTIONS catalog
+        const allPath = coursesCollectionPath(department, year, 'ALL_SECTIONS');
+        const fallbackRef = doc(db, allPath, courseId);
+        const fbSnap = await getDoc(fallbackRef);
+        if (fbSnap.exists()) {
+          const data = fbSnap.data();
+          fetchedCourses[courseId] = data.courseName || data.title || courseId;
+        } else {
+          fetchedCourses[courseId] = courseId;
         }
       })
     );
 
     return fetchedCourses;
+  };
+
+  const getWeekDates = () => {
+    const today = new Date();
+    const day = today.getDay(); // 0 Sun .. 6 Sat
+    const mondayOffset = ((day + 6) % 7); // days since Monday
+    const monday = new Date(today);
+    monday.setDate(today.getDate() - mondayOffset);
+    // Build map: 'Monday' -> Date, ... 'Saturday' -> Date
+    const days = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    const dates = {};
+    days.forEach((d, idx) => {
+      const date = new Date(monday);
+      date.setDate(monday.getDate() + idx);
+      dates[d] = date;
+    });
+    return dates;
+  };
+
+  const isoDate = (date) => {
+    const y = date.getFullYear();
+    const m = `${date.getMonth() + 1}`.padStart(2, '0');
+    const d = `${date.getDate()}`.padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  };
+
+  const ensureAttendanceForCurrentWeek = async (entries, department, year, section, courseNames, facultyNames) => {
+    if (!Array.isArray(entries) || entries.length === 0) return;
+    const weekDates = getWeekDates();
+    const batch = writeBatch(db);
+
+    // For each timetable entry, upsert an attendance session document for this week's corresponding day
+    for (const entry of entries) {
+      const day = (entry.day || '').trim();
+      if (!weekDates[day]) continue;
+      const dateObj = weekDates[day];
+      const dateKey = isoDate(dateObj);
+
+      const courseId = entry.courseId;
+      const facultyId = entry.facultyId;
+      const courseName = courseNames[courseId] || courseId;
+      const facultyName = facultyNames[facultyId] || facultyId;
+
+      // Try to fetch students linked to this course and section from course doc
+      let studentIds = [];
+      try {
+        const courseRef = doc(db, courseDocPath(department, year, section.toUpperCase(), courseId));
+        const courseSnap = await getDoc(courseRef);
+        if (courseSnap.exists()) {
+          const data = courseSnap.data();
+          const bySec = data.studentsBySection || {};
+          const list = bySec[section.toUpperCase()];
+          if (Array.isArray(list)) studentIds = list;
+        }
+      } catch (_) {}
+
+      // Attendance doc path
+      const attDocRef = doc(db, `attendance/${department}_${year}_${section.toUpperCase()}/${dateKey}_${courseId}`);
+      batch.set(attDocRef, {
+        department,
+        year,
+        section: section.toUpperCase(),
+        date: dateKey,
+        courseId,
+        courseName,
+        facultyId,
+        facultyName,
+        startTime: entry.startTime || null,
+        endTime: entry.endTime || null,
+        periods: entry.periods || [],
+        room: entry.room || null,
+        // Initialize status as pending, keyed by student id
+        statusByStudent: Array.isArray(studentIds) ? Object.fromEntries(studentIds.map((id) => [id, 'pending'])) : {},
+        createdAt: new Date().toISOString(),
+      }, { merge: true });
+    }
+
+    try {
+      await batch.commit();
+    } catch (e) {
+      console.warn('Failed to ensure attendance docs:', e);
+    }
   };
 
   const organizeTimetableByDays = () => {
@@ -177,6 +277,22 @@ const WeeklyTimetable = () => {
         <div className="bg-white rounded-2xl shadow-lg p-6 mb-8">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
             <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Department</label>
+              <select
+                value={department}
+                onChange={(e) => setDepartment(e.target.value)}
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white"
+              >
+                <option value="CSE_DS">CSE_DS</option>
+                <option value="CSE">CSE</option>
+                <option value="IT">IT</option>
+                <option value="ECE">ECE</option>
+                <option value="EEE">EEE</option>
+                <option value="MECH">MECH</option>
+                <option value="CIVIL">CIVIL</option>
+              </select>
+            </div>
+            <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">Academic Year</label>
               <select
                 value={year}
@@ -207,7 +323,7 @@ const WeeklyTimetable = () => {
 
             <button
               onClick={fetchTimetable}
-              disabled={!year || !section || loading}
+              disabled={!department || !year || !section || loading}
               className="px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-xl hover:from-blue-600 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center gap-2 font-semibold shadow-lg hover:shadow-xl"
             >
               {loading ? (

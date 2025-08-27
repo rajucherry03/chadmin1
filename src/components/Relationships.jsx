@@ -7,6 +7,8 @@ import {
   coursesCollectionPath,
   courseDocPath,
   possibleStudentsCollectionPaths,
+  coursesCollectionPathYearSem,
+  courseDocPathYearSem,
 } from "../utils/pathBuilders";
 
 function Relationships() {
@@ -17,6 +19,7 @@ function Relationships() {
   const [selectedDepartment, setSelectedDepartment] = useState("CSE_DS");
   const [selectedYear, setSelectedYear] = useState("");
   const [selectedSection, setSelectedSection] = useState("");
+  const [selectedSemester, setSelectedSemester] = useState(""); // e.g., II_4
   const [selectedStudents, setSelectedStudents] = useState([]);
   const [selectedCourse, setSelectedCourse] = useState("");
   const [selectedFaculty, setSelectedFaculty] = useState("");
@@ -83,9 +86,12 @@ function Relationships() {
       try {
         const normalizedSection = selectedSection.toUpperCase();
         const studentsPath = studentsCollectionPath(selectedDepartment, selectedYear, normalizedSection);
-        // Always read courses from ALL_SECTIONS for the chosen year
-        const coursesPath = coursesCollectionPath(selectedDepartment, selectedYear, "ALL_SECTIONS");
-        console.log("Fetching courses from (ALL_SECTIONS):", coursesPath);
+        // Prefer new year_sem structure if provided, else ALL_SECTIONS per-year
+        const useYearSem = !!selectedSemester;
+        const coursesPath = useYearSem
+          ? coursesCollectionPathYearSem(selectedDepartment, selectedSemester)
+          : coursesCollectionPath(selectedDepartment, selectedYear, "ALL_SECTIONS");
+        console.log("Fetching courses from:", coursesPath);
 
         // Fetch students with variants: try multiple possible paths until we find data
         let studentsData = [];
@@ -219,28 +225,36 @@ function Relationships() {
       );
 
       // Upsert the course with instructor and students in the SECTION-SPECIFIC document
-      // We read from ALL_SECTIONS but create/update per-section doc so each section is separated
+      // For new structure, we only write to master course's sections subdoc
       const selectedCourseMeta = courses.find(c => c.id === selectedCourse) || {};
-      const courseRef = doc(db, courseDocPath(selectedDepartment, selectedYear, normalizedSection, selectedCourse));
+      const useYearSem = !!selectedSemester;
+      const sectionCourseRef = doc(
+        db,
+        useYearSem
+          ? courseDocPathYearSem(selectedDepartment, selectedSemester, selectedCourse)
+          : courseDocPath(selectedDepartment, selectedYear, normalizedSection, selectedCourse)
+      );
       const studentsBySection = {
         [normalizedSection]: studentIdsToAssign
       };
-      batch.set(
-        courseRef,
-        {
-          // carry over core fields from ALL_SECTIONS source doc
-          courseCode: selectedCourseMeta.courseCode || selectedCourseMeta.code || undefined,
-          courseName: selectedCourseMeta.courseName || selectedCourseMeta.title || selectedCourseMeta.name || undefined,
-          instructor: selectedFaculty,
-          // remove legacy top-level students list to avoid duplication
-          students: deleteField(),
-          studentsBySection,
-          masterCoursePath: selectedCourseMeta._path || null,
-        },
-        { merge: true }
-      );
+      if (!useYearSem) {
+        // Backward path: maintain per-section doc
+        batch.set(
+          sectionCourseRef,
+          {
+            courseCode: selectedCourseMeta.courseCode || selectedCourseMeta.code || undefined,
+            courseName: selectedCourseMeta.courseName || selectedCourseMeta.title || selectedCourseMeta.name || undefined,
+            instructor: selectedFaculty,
+            students: deleteField(),
+            studentsBySection,
+            masterCoursePath: selectedCourseMeta._path || null,
+          },
+          { merge: true }
+        );
+      }
 
       // Additionally, write a normalized per-section sub-document under the master ALL_SECTIONS course doc for scalability
+      // For new structure or existing master with path, store link under master course doc
       if (selectedCourseMeta && selectedCourseMeta._path) {
         const masterSectionsPath = `${selectedCourseMeta._path}/sections/${normalizedSection}`;
         const masterSectionRef = doc(db, masterSectionsPath);
@@ -252,6 +266,7 @@ function Relationships() {
             department: selectedDepartment,
             year: selectedYear,
             section: normalizedSection,
+            semesterKey: selectedSemester || null,
           },
           { merge: true }
         );
@@ -308,6 +323,25 @@ function Relationships() {
                 <option value="IV">IV</option>
                 <option value="III">III</option>
                 <option value="II">II</option>
+              </select>
+            </div>
+
+            <div>
+              <h2 className="text-2xl font-semibold text-gray-700 mb-2">Select Semester (optional)</h2>
+              <select
+                value={selectedSemester}
+                onChange={(e) => setSelectedSemester(e.target.value)}
+                className="w-full p-3 border border-gray-300 rounded-md"
+              >
+                <option value="">-- Use Year-based (legacy) --</option>
+                <option value="I_1">I_1</option>
+                <option value="I_2">I_2</option>
+                <option value="II_3">II_3</option>
+                <option value="II_4">II_4</option>
+                <option value="III_5">III_5</option>
+                <option value="III_6">III_6</option>
+                <option value="IV_7">IV_7</option>
+                <option value="IV_8">IV_8</option>
               </select>
             </div>
 
