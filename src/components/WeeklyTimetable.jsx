@@ -332,6 +332,116 @@ const WeeklyTimetable = () => {
     }
   };
 
+  const getAssignedCoursesForSection = async (dept, year, section, semKey) => {
+    const results = [];
+    const trySemKeys = semKey ? [semKey.toUpperCase()] : possibleSemesterKeysForYear(year);
+    for (const sk of trySemKeys) {
+      try {
+        const path = coursesCollectionPathYearSem(dept, sk);
+        const snap = await getDocs(collection(db, path));
+        for (const d of snap.docs) {
+          const courseId = d.id;
+          // Check section subdoc
+          const secRef = doc(db, `${path}/${courseId}/sections/${section.toUpperCase()}`);
+          const secSnap = await getDoc(secRef);
+          if (secSnap.exists()) {
+            const meta = d.data();
+            const sec = secSnap.data();
+            results.push({
+              courseId,
+              courseName: meta.courseName || meta.title || courseId,
+              facultyId: sec.instructor || null,
+            });
+          }
+        }
+        if (results.length > 0) return results;
+      } catch (_) {
+        // keep trying other sem keys
+      }
+    }
+    return results;
+  };
+
+  const getCollegeTimeSlots = () => {
+    // 7 periods/day
+    return [
+      { label: '1st', start: '09:10', end: '10:10' },
+      { label: '2nd', start: '10:10', end: '11:10' },
+      { label: '3rd', start: '11:10', end: '12:10' },
+      // lunch 12:10-13:00
+      { label: '4th', start: '13:00', end: '14:00' },
+      { label: '5th', start: '14:00', end: '15:00' },
+      { label: '6th', start: '15:00', end: '16:00' },
+      { label: '7th', start: '16:00', end: '17:00' },
+    ];
+  };
+
+  const autoGenerateTimetable = async () => {
+    if (!department || !year || !section) {
+      alert('Please select department, year and section.');
+      return;
+    }
+    if (!semesterKey) {
+      const ok = window.confirm('No Semester selected. Try all semesters for this year?');
+      if (!ok) return;
+    }
+    setLoading(true);
+    try {
+      // Collect assigned courses for this section from year_sem
+      const assigned = await getAssignedCoursesForSection(department, year, section, semesterKey);
+      if (assigned.length === 0) {
+        alert('No assigned courses found for this section in the selected semester/year.');
+        setLoading(false);
+        return;
+      }
+
+      const days = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+      const slots = getCollegeTimeSlots();
+      const path = semesterKey
+        ? timetableCollectionPathYearSem(department, semesterKey, section)
+        : timetableCollectionPathLegacy(year, section);
+
+      // Clear existing timetable for this scope
+      try {
+        const snap = await getDocs(collection(db, path));
+        const delBatch = writeBatch(db);
+        snap.forEach((d) => delBatch.delete(d.ref));
+        await delBatch.commit();
+      } catch (_) {}
+
+      // Round-robin assign courses to time slots across days
+      const batch = writeBatch(db);
+      let idx = 0;
+      for (const day of days) {
+        for (const slot of slots) {
+          const c = assigned[idx % assigned.length];
+          idx++;
+          // Create doc id based on day+slot to be stable
+          const entryId = `${day}_${slot.label}`;
+          const entryRef = doc(collection(db, path), entryId);
+          batch.set(entryRef, {
+            day,
+            periods: [slot.label],
+            startTime: slot.start,
+            endTime: slot.end,
+            room: '',
+            courseId: c.courseId,
+            facultyId: c.facultyId || '',
+          }, { merge: true });
+        }
+      }
+      await batch.commit();
+
+      await fetchTimetable();
+      alert('Timetable auto-generated successfully.');
+    } catch (e) {
+      console.error('Failed to auto-generate timetable', e);
+      alert('Failed to auto-generate timetable.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
       <div className="container mx-auto p-6">
@@ -438,6 +548,14 @@ const WeeklyTimetable = () => {
             >
               <FaEdit />
               Create Entry
+            </button>
+            <button
+              onClick={autoGenerateTimetable}
+              disabled={!department || !year || !section || loading}
+              className="px-6 py-3 bg-gradient-to-r from-indigo-500 to-blue-600 text-white rounded-xl hover:from-indigo-600 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center gap-2 font-semibold shadow-lg hover:shadow-xl"
+            >
+              <FaClock />
+              Auto-Generate Timetable
             </button>
           </div>
         </div>

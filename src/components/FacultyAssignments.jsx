@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
-import { collection, collectionGroup, getDocs, doc, getDoc, updateDoc, query, where } from "firebase/firestore";
+import { collection, collectionGroup, getDocs, doc, getDoc, updateDoc, query, where, deleteDoc, deleteField, arrayRemove } from "firebase/firestore";
 import { db } from "../firebase";
+import { studentsCollectionPath } from "../utils/pathBuilders";
 
 function FacultyAssignments() {
   const [facultyAssignments, setFacultyAssignments] = useState([]);
@@ -163,42 +164,71 @@ function FacultyAssignments() {
   const handleDelete = async (assignment) => {
     if (window.confirm("Are you sure you want to delete this relationship?")) {
       try {
-        // Step 1: Remove the course from the faculty's assigned courses (if we know their doc path)
-        if (assignment.facultyDocPath) {
-          const facultyRef = doc(db, assignment.facultyDocPath);
+        // Step 1: Remove the course from the faculty's assigned courses and teaching map
+        const possibleFacultyPaths = [];
+        if (assignment.facultyDocPath) possibleFacultyPaths.push(assignment.facultyDocPath);
+        if (assignment.department && assignment.facultyId) {
+          possibleFacultyPaths.push(`faculty/${assignment.department}/members/${assignment.facultyId}`);
+        }
+        for (const fPath of possibleFacultyPaths) {
+          try {
+          const facultyRef = doc(db, fPath);
           const facultyDocSnap = await getDoc(facultyRef);
           if (facultyDocSnap.exists()) {
             const facultyData = facultyDocSnap.data() || {};
             const updatedCourses = (facultyData.courses || []).filter((courseId) => courseId !== assignment.id);
-            await updateDoc(facultyRef, { courses: updatedCourses });
+            const teachingKey = `${(assignment.year || '').split('_')[0]}_${assignment.section}`;
+            await updateDoc(facultyRef, { courses: updatedCourses, [`teaching.${teachingKey}`]: deleteField() });
           }
+          } catch (_) { /* ignore */ }
         }
 
-        // Step 2: Remove the course from all students in the specified year and section
-        const studentsSnapshot = await getDocs(
-          collection(
-            db,
-            `students/years/${assignment.year}/sections/${assignment.section}`
-          )
-        );
-        for (const studentDoc of studentsSnapshot.docs) {
-          const studentData = studentDoc.data();
-          const updatedStudentCourses = (studentData.courses || []).filter(
-            (courseId) => courseId !== assignment.id
-          );
-          const studentRef = doc(
-            db,
-            `students/years/${assignment.year}/sections/${assignment.section}/${studentDoc.id}`
-          );
-          await updateDoc(studentRef, { courses: updatedStudentCourses });
+        // Step 2: Remove the course from all students in the specified dept/year/section (new schema)
+        try {
+          const romanYear = (assignment.year || '').toString().split('_')[0];
+          const studentsPath = studentsCollectionPath(assignment.department, romanYear, assignment.section);
+          const studentsSnapshot = await getDocs(collection(db, studentsPath));
+          for (const sDoc of studentsSnapshot.docs) {
+            const studentRef = sDoc.ref;
+            await updateDoc(studentRef, { courses: arrayRemove(assignment.id) });
+          }
+        } catch (_) {
+          // ignore missing collections
         }
 
-        // Step 3: Reset the instructor and students relationship in the course document (use dynamic path)
-        const courseRef = doc(db, assignment.courseDocPath);
-        await updateDoc(courseRef, {
-          instructor: null, // Remove the instructor
-          students: [], // Clear the list of students
-        });
+        // Try legacy structure removal as well: students/{year}/{section}
+        try {
+          const romanYear = (assignment.year || '').toString().split('_')[0];
+          const legacySnap = await getDocs(collection(db, `students/${romanYear}/${assignment.section}`));
+          for (const sDoc of legacySnap.docs) {
+            const studentRef = sDoc.ref;
+            await updateDoc(studentRef, { courses: arrayRemove(assignment.id) });
+          }
+        } catch (_) { /* ignore */ }
+
+        // Step 3: Delete section linkage and/or per-section course document
+        const path = assignment.courseDocPath || '';
+        const seg = path.split('/');
+        const variantKey = seg[2] || '';
+        if (variantKey === 'years') {
+          const pathSection = seg[5] || '';
+          if (pathSection && pathSection !== 'ALL_SECTIONS') {
+            // This is already a section-specific course doc → delete it
+            await deleteDoc(doc(db, path));
+          } else {
+            // Master ALL_SECTIONS course → delete the subdoc for this section
+            const secRef = doc(db, `${path}/sections/${assignment.section}`);
+            await deleteDoc(secRef);
+          }
+        } else if (variantKey === 'year_sem') {
+          // Delete subdoc under master course
+          const secRef = doc(db, `${path}/sections/${assignment.section}`);
+          await deleteDoc(secRef);
+        } else {
+          // Unknown variant: best-effort reset
+          const courseRef = doc(db, path);
+          await updateDoc(courseRef, { instructor: null, students: [] });
+        }
 
         // Step 4: Update the local state
         setFacultyAssignments((prev) => prev.filter((item) => item.id !== assignment.id));
