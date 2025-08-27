@@ -7,13 +7,13 @@ import { getStorage } from "firebase/storage";
 import { handleFirebaseAnalyticsError } from "./utils/errorHandler.js";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyBwJExOpia7I5rcumlxet9l8_0UqMEQD9w",
-  authDomain: "ch360-erp.firebaseapp.com",
-  projectId: "ch360-erp",
-  storageBucket: "ch360-erp.firebasestorage.app",
-  messagingSenderId: "845970812719",
-  appId: "1:845970812719:web:36957be1c3d408a221fbda",
-  measurementId: "G-R6NWHNY4BN"
+  apiKey: "AIzaSyA0U_p8Zi4OQ14JwC5xvU7C0m3IxJ1bCZ8",
+  authDomain: "ch360-ds-erp.firebaseapp.com",
+  projectId: "ch360-ds-erp",
+  storageBucket: "ch360-ds-erp.firebasestorage.app",
+  messagingSenderId: "534259169903",
+  appId: "1:534259169903:web:6f8cb4ebb2e2128ac12b9a",
+  measurementId: "G-2FWQFRNZJ2"
 };
 
 const app = initializeApp(firebaseConfig);
