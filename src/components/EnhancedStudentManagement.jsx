@@ -16,7 +16,7 @@ import {
 import { db } from "../firebase";
 import { collection, doc, getDocs, updateDoc, deleteDoc, query, where, orderBy, limit, onSnapshot, addDoc } from "firebase/firestore";
 import { getAuth, createUserWithEmailAndPassword } from "firebase/auth";
-import BulkImportFixed from "./BulkImportFixed";
+import EnhancedBulkImport from "./EnhancedBulkImport";
 
 // Import new components
 import RollNumberGenerator from "./StudentManagement/RollNumberGenerator";
@@ -843,7 +843,7 @@ const EnhancedStudentManagement = () => {
                   <FontAwesomeIcon icon={faTimes} />
                 </button>
               </div>
-                             <BulkImportFixed onClose={() => setShowBulkImport(false)} />
+                             <EnhancedBulkImport onClose={() => setShowBulkImport(false)} />
             </div>
           </div>
         </div>

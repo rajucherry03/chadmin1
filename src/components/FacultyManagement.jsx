@@ -78,7 +78,7 @@ import {
   faMicroscope,
   faLightbulb,
   faRocket,
-  faTarget,
+  faBullseye,
   faArrowUp,
   faChartPie,
   faTable,

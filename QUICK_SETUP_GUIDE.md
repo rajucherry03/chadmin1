@@ -124,9 +124,9 @@ Your Excel file should have these exact column headers:
 | A | S. NO | No | Number |
 | B | Roll. No | **Yes** | Text |
 | C | Student Name | **Yes** | Text |
-| D | Quota | No | COV/MGMT |
+| D | Quota | No | CC/MG |
 | E | Gender | No | Male/Female |
-| F | Aadhaar | No | 12 digits |
+
 | G | Student Mobile | No | 10 digits |
 | H | Father Mobile | No | 10 digits |
 | I | Father Name | No | Text |

@@ -13,7 +13,7 @@ import {
 import { db } from "../firebase";
 import { collection, collectionGroup, doc, getDocs, updateDoc, deleteDoc, query, where, orderBy, limit, onSnapshot } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
-import BulkImportFixed from "./BulkImportFixed";
+import EnhancedBulkImport from "./EnhancedBulkImport";
 
 // Import new components
 import RollNumberGenerator from "./StudentManagement/RollNumberGenerator";
@@ -205,8 +205,8 @@ const StudentManagement = () => {
     },
     {
       id: 'bulkImport',
-      title: 'Bulk Import',
-      description: 'Import multiple students',
+      title: 'Enhanced Bulk Import',
+      description: 'Import with Firebase Auth',
       icon: faUpload,
       color: 'bg-green-500',
       action: () => handleQuickAction('bulkImport')
@@ -725,7 +725,7 @@ const StudentManagement = () => {
               className="bg-white hover:bg-gray-50 text-blue-600 px-3 py-2 rounded-lg flex items-center justify-center space-x-2 text-xs font-medium transition-all duration-200"
             >
               <FontAwesomeIcon icon={faUpload} />
-              <span>Bulk Import</span>
+              <span>Enhanced Bulk Import</span>
             </button>
           </div>
         </div>
@@ -884,11 +884,13 @@ const StudentManagement = () => {
 
       {/* Modals */}
       {showBulkImport && (
-        <BulkImportFixed 
+        <EnhancedBulkImport 
           onClose={() => setShowBulkImport(false)} 
           onSuccess={(count) => {
             setShowBulkImport(false);
-            fetchStudents(); // Refresh the student list
+            // Refresh the student list by triggering a re-fetch
+            setLoading(true);
+            setTimeout(() => setLoading(false), 1000);
             alert(`Successfully imported ${count} students!`);
           }}
         />

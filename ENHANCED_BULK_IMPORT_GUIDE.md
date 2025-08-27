@@ -16,16 +16,15 @@ This enhanced bulk import system provides a comprehensive solution for importing
 ### 📊 Excel Format Support
 - **Exact Column Mapping**: Supports your specific Excel format with columns:
   - S. NO (Serial Number)
-  - Roll. No (Student Roll Number)
-  - Student Name
-  - Quota (COV/MGMT)
-  - Gender (Male/Female)
-  - Aadhaar (12-digit number)
-  - Student Mobile (10-digit number)
-  - Father Mobile (10-digit number)
-  - Father Name
-  - Mother Name
-  - Permanent Address
+  - Roll. No (Student Roll Number) - **Required**
+  - Student Name - **Required**
+  - Quota (CC/MG) - Optional
+  - Gender (Male/Female) - Optional
+  - Student Mobile (10-digit number) - Optional
+  - Father Mobile (10-digit number) - Optional
+  - Father Name - Optional
+  - Mother Name - Optional
+  - Permanent Address - Optional
 
 ### 🏗️ Database Architecture
 - **Hierarchical Structure**: `students/{department}/{year-section}/{uid}`
@@ -35,8 +34,9 @@ This enhanced bulk import system provides a comprehensive solution for importing
 
 ### ✅ Data Validation
 - **Real-time Validation**: Validates data during import process
-- **Format Checking**: Validates roll numbers, mobile numbers, Aadhaar
-- **Required Fields**: Ensures essential data is present
+- **Required Fields Only**: Only Roll Number and Student Name are required
+- **Optional Field Validation**: Validates other fields only if data is provided
+- **Format Checking**: Validates roll numbers, mobile numbers, Aadhaar (when provided)
 - **Error Reporting**: Detailed error messages for troubleshooting
 
 ## File Structure
@@ -80,8 +80,8 @@ const [showImport, setShowImport] = useState(false);
 
 #### Step 2: Configuration
 - Select Department (CSE, ECE, EEE, MECH, CIVIL, IT)
-- Select Year (I, II, III, IV)
-- Select Section (A, B, C, D)
+- Select Year (III, IV) - Based on your Excel sheet structure
+- Select Section (A, B, C, D, E) - Based on your Excel sheet structure
 - Preview data and validation results
 
 #### Step 3: Confirmation

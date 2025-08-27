@@ -14,8 +14,8 @@ import {
   faThumbsDown, faHourglassHalf, faCheckDouble, faBan, faLock,
   faUnlock, faShieldAlt, faUserShield, faDatabase, faCloudUpload,
   faCloudDownload, faSync, faHistory, faArchive, faInbox, faSignOutAlt,
-  faList, faTrendingUp, faTrendingDown, faPercent, faDollarSign,
-  faCalendar, faUserFriends, faIndustryAlt, faGraduationCapAlt, faQuestion
+  faList, faArrowTrendUp, faArrowTrendDown, faPercent, faDollarSign,
+  faCalendar, faUserFriends, faQuestion
 } from '@fortawesome/free-solid-svg-icons';
 import internshipPlacementService from './services/internshipPlacementService';
 
@@ -263,7 +263,7 @@ const AdminDashboard = ({
             </div>
           </div>
           <div className="mt-4 flex items-center text-sm">
-            <FontAwesomeIcon icon={faTrendingUp} className="text-green-500 mr-1" />
+            <FontAwesomeIcon icon={faArrowTrendUp} className="text-green-500 mr-1" />
             <span className="text-green-600">+12% from last month</span>
           </div>
         </div>
@@ -279,7 +279,7 @@ const AdminDashboard = ({
             </div>
           </div>
           <div className="mt-4 flex items-center text-sm">
-            <FontAwesomeIcon icon={faTrendingUp} className="text-green-500 mr-1" />
+            <FontAwesomeIcon icon={faArrowTrendUp} className="text-green-500 mr-1" />
             <span className="text-green-600">+8% from last week</span>
           </div>
         </div>
@@ -295,7 +295,7 @@ const AdminDashboard = ({
             </div>
           </div>
           <div className="mt-4 flex items-center text-sm">
-            <FontAwesomeIcon icon={faTrendingUp} className="text-green-500 mr-1" />
+            <FontAwesomeIcon icon={faArrowTrendUp} className="text-green-500 mr-1" />
             <span className="text-green-600">+15% from last year</span>
           </div>
         </div>
@@ -311,7 +311,7 @@ const AdminDashboard = ({
             </div>
           </div>
           <div className="mt-4 flex items-center text-sm">
-            <FontAwesomeIcon icon={faTrendingUp} className="text-green-500 mr-1" />
+            <FontAwesomeIcon icon={faArrowTrendUp} className="text-green-500 mr-1" />
             <span className="text-green-600">+5% improvement</span>
           </div>
         </div>

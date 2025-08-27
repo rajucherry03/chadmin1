@@ -49,6 +49,8 @@ const EnhancedBulkImport = ({ onClose, onSuccess }) => {
   const [previewData, setPreviewData] = useState([]);
   const [validationResults, setValidationResults] = useState({});
   const [showPassword, setShowPassword] = useState(false);
+  const [detectedYears, setDetectedYears] = useState([]);
+  const [detectedSections, setDetectedSections] = useState([]);
   const [importStats, setImportStats] = useState({
     total: 0,
     success: 0,
@@ -58,19 +60,20 @@ const EnhancedBulkImport = ({ onClose, onSuccess }) => {
     authFailed: 0
   });
 
-  // Excel column mapping based on your format
+  // Excel column mapping based on your format - only map columns that exist
   const excelMapping = {
     'S. NO': 'serialNo',
     'Roll. No': 'rollNo',
     'Student Name': 'studentName',
     'Quota': 'quota',
     'Gender': 'gender',
-    'Aadhaar': 'aadhaar',
     'Student Mobile': 'studentMobile',
     'Father Mobile': 'fatherMobile',
     'Father Name': 'fatherName',
     'Mother Name': 'motherName',
-    'Permanent Address': 'permanentAddress'
+    'Permanent Address': 'permanentAddress',
+    'Year': 'year',
+    'Section': 'section'
   };
 
   // Department options
@@ -83,20 +86,19 @@ const EnhancedBulkImport = ({ onClose, onSuccess }) => {
     { value: 'IT', label: 'Information Technology', short: 'IT' }
   ];
 
-  // Year options
+  // Year options based on your Excel sheet (III and IV)
   const years = [
-    { value: 'I', label: 'First Year' },
-    { value: 'II', label: 'Second Year' },
     { value: 'III', label: 'Third Year' },
     { value: 'IV', label: 'Fourth Year' }
   ];
 
-  // Section options
+  // Section options based on your Excel sheet (A, B, C, D, E)
   const sections = [
     { value: 'A', label: 'Section A' },
     { value: 'B', label: 'Section B' },
     { value: 'C', label: 'Section C' },
-    { value: 'D', label: 'Section D' }
+    { value: 'D', label: 'Section D' },
+    { value: 'E', label: 'Section E' }
   ];
 
   const handleFileUpload = (e) => {
@@ -196,6 +198,10 @@ const EnhancedBulkImport = ({ onClose, onSuccess }) => {
 
         setData(processedData);
         setPreviewData(processedData.slice(0, 5));
+        
+        // Detect years and sections from the data
+        detectYearsAndSections(processedData);
+        
         setStep(2);
         
         // Auto-validate the data
@@ -216,37 +222,36 @@ const EnhancedBulkImport = ({ onClose, onSuccess }) => {
     studentData.forEach((student, index) => {
       const errors = [];
       
-      // Required fields
+      // Only required fields: Roll number and Student name
       if (!student.rollNo) errors.push('Roll number is required');
       if (!student.studentName) errors.push('Student name is required');
       
-      // Roll number format validation
+      // Roll number format validation (only if provided)
       if (student.rollNo && !/^[0-9A-Za-z]+$/.test(student.rollNo)) {
         errors.push('Roll number should contain only letters and numbers');
       }
       
-      // Mobile number validation
-      if (student.studentMobile && !/^[0-9]{10}$/.test(student.studentMobile.replace(/\D/g, ''))) {
+      // Optional field validations (only if data is provided)
+      
+      // Mobile number validation (only if provided)
+      if (student.studentMobile && student.studentMobile.trim() !== '' && !/^[0-9]{10}$/.test(student.studentMobile.replace(/\D/g, ''))) {
         errors.push('Student mobile should be 10 digits');
       }
       
-      if (student.fatherMobile && !/^[0-9]{10}$/.test(student.fatherMobile.replace(/\D/g, ''))) {
+      if (student.fatherMobile && student.fatherMobile.trim() !== '' && !/^[0-9]{10}$/.test(student.fatherMobile.replace(/\D/g, ''))) {
         errors.push('Father mobile should be 10 digits');
       }
       
-      // Aadhaar validation
-      if (student.aadhaar && !/^[0-9]{12}$/.test(student.aadhaar.replace(/\D/g, ''))) {
-        errors.push('Aadhaar should be 12 digits');
-      }
+      // Aadhaar validation removed - not present in your Excel format
       
-      // Gender validation
-      if (student.gender && !['Male', 'Female', 'Other'].includes(student.gender)) {
+      // Gender validation (only if provided)
+      if (student.gender && student.gender.trim() !== '' && !['Male', 'Female', 'Other'].includes(student.gender)) {
         errors.push('Gender should be Male, Female, or Other');
       }
       
-      // Quota validation
-      if (student.quota && !['COV', 'MGMT'].includes(student.quota)) {
-        errors.push('Quota should be COV or MGMT');
+      // Quota validation (only if provided) - Updated to match your Excel format (CC, MG)
+      if (student.quota && student.quota.trim() !== '' && !['CC', 'MG', 'COV', 'MGMT'].includes(student.quota)) {
+        errors.push('Quota should be CC, MG, COV, or MGMT');
       }
       
       validation[index] = errors;
@@ -270,6 +275,27 @@ const EnhancedBulkImport = ({ onClose, onSuccess }) => {
     // Generate a secure password based on roll number
     const timestamp = Date.now().toString().slice(-4);
     return `${rollNo}@${timestamp}`;
+  };
+
+  const detectYearsAndSections = (studentData) => {
+    // Extract unique years and sections from the data
+    const years = [...new Set(studentData.map(student => student.year).filter(Boolean))];
+    const sections = [...new Set(studentData.map(student => student.section).filter(Boolean))];
+    
+    // Sort years and sections
+    years.sort();
+    sections.sort();
+    
+    setDetectedYears(years);
+    setDetectedSections(sections);
+    
+    // Auto-select first year and section if available
+    if (years.length > 0 && !selectedYear) {
+      setSelectedYear(years[0]);
+    }
+    if (sections.length > 0 && !selectedSection) {
+      setSelectedSection(sections[0]);
+    }
   };
 
   const createFirebaseAuth = async (studentData) => {
@@ -343,14 +369,13 @@ const EnhancedBulkImport = ({ onClose, onSuccess }) => {
             console.warn(`Auth creation failed for ${student.rollNo}:`, authResult.error);
           }
 
-          // Prepare student document data
-          const studentDoc = {
-            // Basic Information
-            rollNo: student.rollNo,
-            studentName: student.studentName,
-            quota: student.quota || '',
-            gender: student.gender || '',
-            aadhaar: student.aadhaar || '',
+                     // Prepare student document data
+           const studentDoc = {
+             // Basic Information
+             rollNo: student.rollNo,
+             studentName: student.studentName,
+             quota: student.quota || '',
+             gender: student.gender || '',
             
             // Contact Information
             studentMobile: student.studentMobile || '',
@@ -444,53 +469,56 @@ const EnhancedBulkImport = ({ onClose, onSuccess }) => {
   };
 
   const downloadTemplate = () => {
-    const templateData = [
-      {
-        'S. NO': 1,
-        'Roll. No': '23691A3201',
-        'Student Name': 'MULLA ABDULKALAM',
-        'Quota': 'COV',
-        'Gender': 'Male',
-        'Aadhaar': '427493186901',
-        'Student Mobile': '8019397343',
-        'Father Mobile': '9705964343',
-        'Father Name': 'Mulla Mahaboob Peera',
-        'Mother Name': 'Mulla Gousiya Begum',
-        'Permanent Address': '2-130-A, Mulla Street, Hyderabad'
-      },
-      {
-        'S. NO': 2,
-        'Roll. No': '23691A3202',
-        'Student Name': 'SHAIK ABUBAKAR SIDDIQ',
-        'Quota': 'MGMT',
-        'Gender': 'Male',
-        'Aadhaar': '980288669955',
-        'Student Mobile': '9963121976',
-        'Father Mobile': '9441501881',
-        'Father Name': 'Shaik Mujibur Rahiman',
-        'Mother Name': 'Shaik Noorjahan',
-        'Permanent Address': '38/169-2-6, Old City, Hyderabad'
-      }
-    ];
+         const templateData = [
+              {
+          'S. NO': 1,
+          'Roll. No': '23691A3201',
+          'Student Name': 'MULLA ABDULKALAM',
+          'Year': 'III',
+          'Section': 'B',
+          'Quota': 'CC',
+          'Gender': 'Male',
+          'Student Mobile': '',
+          'Father Mobile': '',
+          'Father Name': '',
+          'Mother Name': '',
+          'Permanent Address': ''
+        },
+              {
+          'S. NO': 2,
+          'Roll. No': '23691A3202',
+          'Student Name': 'SHAIK ABUBAKAR SIDDIQ',
+          'Year': 'IV',
+          'Section': 'A',
+          'Quota': 'MG',
+          'Gender': 'Male',
+          'Student Mobile': '',
+          'Father Mobile': '',
+          'Father Name': '',
+          'Mother Name': '',
+          'Permanent Address': ''
+        }
+     ];
 
     const ws = XLSX.utils.json_to_sheet(templateData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Students');
     
-    // Auto-size columns
-    const colWidths = [
-      { wch: 5 },   // S. NO
-      { wch: 12 },  // Roll. No
-      { wch: 25 },  // Student Name
-      { wch: 8 },   // Quota
-      { wch: 8 },   // Gender
-      { wch: 15 },  // Aadhaar
-      { wch: 12 },  // Student Mobile
-      { wch: 12 },  // Father Mobile
-      { wch: 25 },  // Father Name
-      { wch: 25 },  // Mother Name
-      { wch: 40 }   // Permanent Address
-    ];
+         // Auto-size columns
+     const colWidths = [
+       { wch: 5 },   // S. NO
+       { wch: 12 },  // Roll. No
+       { wch: 25 },  // Student Name
+       { wch: 8 },   // Year
+       { wch: 8 },   // Section
+       { wch: 8 },   // Quota
+       { wch: 8 },   // Gender
+       { wch: 12 },  // Student Mobile
+       { wch: 12 },  // Father Mobile
+       { wch: 25 },  // Father Name
+       { wch: 25 },  // Mother Name
+       { wch: 40 }   // Permanent Address
+     ];
     ws['!cols'] = colWidths;
 
     XLSX.writeFile(wb, 'student_import_template.xlsx');
@@ -550,90 +578,146 @@ const EnhancedBulkImport = ({ onClose, onSuccess }) => {
               <span className="text-sm text-gray-500">{data.length} students found</span>
             </div>
 
-            {/* Department, Year, Section Selection */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Department *
-                </label>
-                <select
-                  value={selectedDepartment}
-                  onChange={(e) => setSelectedDepartment(e.target.value)}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">Select Department</option>
-                  {departments.map(dept => (
-                    <option key={dept.value} value={dept.value}>
-                      {dept.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+                         {/* Department, Year, Section Selection */}
+             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+               <div>
+                 <label className="block text-sm font-medium text-gray-700 mb-2">
+                   Department *
+                 </label>
+                 <select
+                   value={selectedDepartment}
+                   onChange={(e) => setSelectedDepartment(e.target.value)}
+                   className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                 >
+                   <option value="">Select Department</option>
+                   {departments.map(dept => (
+                     <option key={dept.value} value={dept.value}>
+                       {dept.label}
+                     </option>
+                   ))}
+                 </select>
+               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Year *
-                </label>
-                <select
-                  value={selectedYear}
-                  onChange={(e) => setSelectedYear(e.target.value)}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">Select Year</option>
-                  {years.map(year => (
-                    <option key={year.value} value={year.value}>
-                      {year.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+               <div>
+                 <label className="block text-sm font-medium text-gray-700 mb-2">
+                   Year * {detectedYears.length > 0 && <span className="text-green-600 text-xs">(Detected from Excel)</span>}
+                 </label>
+                 <select
+                   value={selectedYear}
+                   onChange={(e) => setSelectedYear(e.target.value)}
+                   className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                 >
+                   <option value="">Select Year</option>
+                   {detectedYears.length > 0 ? (
+                     detectedYears.map(year => (
+                       <option key={year} value={year}>
+                         {year}
+                       </option>
+                     ))
+                   ) : (
+                     years.map(year => (
+                       <option key={year.value} value={year.value}>
+                         {year.label}
+                       </option>
+                     ))
+                   )}
+                 </select>
+               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Section *
-                </label>
-                <select
-                  value={selectedSection}
-                  onChange={(e) => setSelectedSection(e.target.value)}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">Select Section</option>
-                  {sections.map(section => (
-                    <option key={section.value} value={section.value}>
-                      {section.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
+               <div>
+                 <label className="block text-sm font-medium text-gray-700 mb-2">
+                   Section * {detectedSections.length > 0 && <span className="text-green-600 text-xs">(Detected from Excel)</span>}
+                 </label>
+                 <select
+                   value={selectedSection}
+                   onChange={(e) => setSelectedSection(e.target.value)}
+                   className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                 >
+                   <option value="">Select Section</option>
+                   {detectedSections.length > 0 ? (
+                     detectedSections.map(section => (
+                       <option key={section} value={section}>
+                         {section}
+                       </option>
+                     ))
+                   ) : (
+                     sections.map(section => (
+                       <option key={section.value} value={section.value}>
+                         {section.label}
+                       </option>
+                     ))
+                   )}
+                 </select>
+               </div>
+                          </div>
 
-            {/* Data Preview */}
+             {/* Detected Year-Section Combinations */}
+             {detectedYears.length > 0 && detectedSections.length > 0 && (
+               <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
+                 <div className="flex items-center mb-3">
+                   <FontAwesomeIcon icon={faCheckCircle} className="text-blue-500 mr-2" />
+                   <h3 className="text-sm font-medium text-blue-800">Detected Year-Section Combinations</h3>
+                 </div>
+                 <div className="flex flex-wrap gap-2">
+                   {detectedYears.map(year => 
+                     detectedSections.map(section => (
+                       <span 
+                         key={`${year}-${section}`}
+                         className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
+                           selectedYear === year && selectedSection === section
+                             ? 'bg-blue-500 text-white'
+                             : 'bg-blue-100 text-blue-800'
+                         }`}
+                       >
+                         {year}-{section}
+                       </span>
+                     ))
+                   )}
+                 </div>
+                 <p className="text-xs text-blue-600 mt-2">
+                   The system detected these year-section combinations from your Excel file. 
+                   Select the appropriate combination above.
+                 </p>
+               </div>
+             )}
+
+             {/* Data Preview */}
             <div>
               <h3 className="text-lg font-medium text-gray-900 mb-4">Data Preview (First 5 records)</h3>
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Roll No
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Name
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Quota
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Gender
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Mobile
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Status
-                      </th>
-                    </tr>
-                  </thead>
+                                     <thead className="bg-gray-50">
+                     <tr>
+                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                         Roll No
+                       </th>
+                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                         Name
+                       </th>
+                       {detectedYears.length > 0 && (
+                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                           Year
+                         </th>
+                       )}
+                       {detectedSections.length > 0 && (
+                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                           Section
+                         </th>
+                       )}
+                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                         Quota
+                       </th>
+                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                         Gender
+                       </th>
+                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                         Mobile
+                       </th>
+                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                         Status
+                       </th>
+                     </tr>
+                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {previewData.map((student, index) => (
                       <tr key={index}>
@@ -643,6 +727,16 @@ const EnhancedBulkImport = ({ onClose, onSuccess }) => {
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           {student.studentName}
                         </td>
+                        {detectedYears.length > 0 && (
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {student.year}
+                          </td>
+                        )}
+                        {detectedSections.length > 0 && (
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {student.section}
+                          </td>
+                        )}
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           {student.quota}
                         </td>

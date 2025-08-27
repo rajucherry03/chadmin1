@@ -189,13 +189,12 @@ export const createStudentDocument = async (studentData, authUid, email, departm
     const documentId = authUid || studentData.rollNo;
     const studentRef = doc(db, `students/${sanitizedDept}/${groupKey}`, documentId);
     
-    const studentDoc = {
-      // Basic Information
-      rollNo: studentData.rollNo,
-      studentName: studentData.studentName,
-      quota: studentData.quota || '',
-      gender: studentData.gender || '',
-      aadhaar: studentData.aadhaar || '',
+         const studentDoc = {
+       // Basic Information
+       rollNo: studentData.rollNo,
+       studentName: studentData.studentName,
+       quota: studentData.quota || '',
+       gender: studentData.gender || '',
       
       // Contact Information
       studentMobile: studentData.studentMobile || '',
@@ -285,28 +284,25 @@ export const validateStudentData = (studentData) => {
     errors.push('Roll number should contain only letters and numbers');
   }
   
-  // Mobile number validation
-  if (studentData.studentMobile && !/^[0-9]{10}$/.test(studentData.studentMobile.replace(/\D/g, ''))) {
+  // Mobile number validation (only if provided)
+  if (studentData.studentMobile && studentData.studentMobile.trim() !== '' && !/^[0-9]{10}$/.test(studentData.studentMobile.replace(/\D/g, ''))) {
     errors.push('Student mobile should be 10 digits');
   }
   
-  if (studentData.fatherMobile && !/^[0-9]{10}$/.test(studentData.fatherMobile.replace(/\D/g, ''))) {
+  if (studentData.fatherMobile && studentData.fatherMobile.trim() !== '' && !/^[0-9]{10}$/.test(studentData.fatherMobile.replace(/\D/g, ''))) {
     errors.push('Father mobile should be 10 digits');
   }
   
-  // Aadhaar validation
-  if (studentData.aadhaar && !/^[0-9]{12}$/.test(studentData.aadhaar.replace(/\D/g, ''))) {
-    errors.push('Aadhaar should be 12 digits');
-  }
+  // Aadhaar validation removed - not present in your Excel format
   
-  // Gender validation
-  if (studentData.gender && !['Male', 'Female', 'Other'].includes(studentData.gender)) {
+  // Gender validation (only if provided)
+  if (studentData.gender && studentData.gender.trim() !== '' && !['Male', 'Female', 'Other'].includes(studentData.gender)) {
     errors.push('Gender should be Male, Female, or Other');
   }
   
-  // Quota validation
-  if (studentData.quota && !['COV', 'MGMT'].includes(studentData.quota)) {
-    errors.push('Quota should be COV or MGMT');
+  // Quota validation (only if provided) - Updated to match your Excel format (CC, MG)
+  if (studentData.quota && studentData.quota.trim() !== '' && !['CC', 'MG', 'COV', 'MGMT'].includes(studentData.quota)) {
+    errors.push('Quota should be CC, MG, COV, or MGMT');
   }
   
   return {
