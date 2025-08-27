@@ -1,7 +1,22 @@
 import React, { useState } from "react";
-import { db } from "../firebase"; // Adjust the path to your Firebase config
-import { collection, addDoc, query, where, getDocs, doc } from "firebase/firestore";
+import { db, auth } from "../firebase";
+import { 
+  collection, 
+  query, 
+  where, 
+  getDocs, 
+  doc, 
+  setDoc, 
+  writeBatch 
+} from "firebase/firestore";
 import * as XLSX from "xlsx";
+import {
+  createFacultyAuthAccount,
+  sendWelcomeEmail,
+  createFacultyProfile,
+  validateFacultyData,
+  FACULTY_ROLES
+} from "../utils/facultyAuthHelpers";
 
 const AddFaculty = () => {
   // Department options (aligned with AddCourse)
@@ -21,6 +36,7 @@ const AddFaculty = () => {
     "Computer Science and Engineering (Artificial Intelligence and Machine Learning)",
     "Computer Science and Engineering (Networks)",
   ];
+
   // Short-form keys (aligned with AddCourse)
   const departmentKeyMap = {
     "Civil Engineering": "CE",
@@ -38,6 +54,9 @@ const AddFaculty = () => {
     "Computer Science and Engineering (Artificial Intelligence and Machine Learning)": "CSE_AIML",
     "Computer Science and Engineering (Networks)": "CSE_NW",
   };
+
+
+
   const toKey = (value) => {
     return String(value || "")
       .toUpperCase()
@@ -45,7 +64,11 @@ const AddFaculty = () => {
       .replace(/[^A-Z0-9]+/g, "_")
       .replace(/^_+|_+$/g, "");
   };
+
   const getDepartmentKey = (name) => departmentKeyMap[name] || toKey(name);
+
+
+
   const initialFields = {
     sno: "",
     name: "",
@@ -89,43 +112,84 @@ const AddFaculty = () => {
   const [selectedDepartment, setSelectedDepartment] = useState("");
   const [facultyData, setFacultyData] = useState(initialFields);
   const [excelData, setExcelData] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadStats, setUploadStats] = useState({
+    total: 0,
+    success: 0,
+    failed: 0,
+    skipped: 0,
+    authCreated: 0,
+    authFailed: 0
+  });
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFacultyData((prevData) => ({ ...prevData, [name]: value }));
   };
 
+
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setLoading(true);
 
     if (!selectedDepartment) {
       alert("Please select a department first.");
+      setLoading(false);
       return;
     }
 
-    if (!facultyData.name || !facultyData.emailID) {
-      alert("Name and Email ID are required.");
+    // Validate faculty data
+    const validation = validateFacultyData(facultyData);
+    if (!validation.isValid) {
+      alert(`Validation errors:\n${validation.errors.join('\n')}`);
+      setLoading(false);
       return;
     }
 
     try {
       const deptKey = getDepartmentKey(selectedDepartment);
-      const deptRef = doc(db, "faculty", deptKey);
-      const facultyCollection = collection(deptRef, "members");
-      const q = query(facultyCollection, where("emailID", "==", facultyData.emailID));
+      
+      // Check if faculty already exists
+      const facultyRef = collection(db, "faculty");
+      const q = query(facultyRef, where("emailID", "==", facultyData.emailID));
       const querySnapshot = await getDocs(q);
 
       if (!querySnapshot.empty) {
         alert("Faculty with this Email ID already exists.");
+        setLoading(false);
         return;
       }
 
-      await addDoc(facultyCollection, { ...facultyData, department: selectedDepartment, departmentKey: deptKey });
-      alert("Faculty added successfully!");
+      // Create Firebase Auth account
+      const authResult = await createFacultyAuthAccount(facultyData);
+      
+      // Prepare enhanced faculty data
+      const enhancedFacultyData = createFacultyProfile(
+        { ...facultyData, department: selectedDepartment, departmentKey: deptKey },
+        authResult.uid,
+        authResult.email
+      );
+
+      // Store in Firestore with UID as document ID if auth was created
+      const documentId = authResult.uid || facultyData.empID;
+      const facultyDocRef = doc(db, "faculty", documentId);
+      
+      await setDoc(facultyDocRef, enhancedFacultyData);
+
+      // Send welcome email if auth was created
+      if (authResult.success) {
+        await sendWelcomeEmail(authResult.email, facultyData.name);
+      }
+
+      alert(`Faculty added successfully!${authResult.success ? ` Auth account created. Email: ${authResult.email}` : ''}`);
       setFacultyData(initialFields);
     } catch (error) {
       console.error("Error adding faculty:", error.message);
       alert("Failed to add faculty. Please try again.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -186,9 +250,8 @@ const AddFaculty = () => {
           ]
         });
 
-        // Remove header row if present
+        // Remove header row if present and filter valid data
         const processedData = jsonData.filter(row => {
-          // Check if row has actual data
           return Object.values(row).some(value => value !== '');
         });
 
@@ -197,9 +260,7 @@ const AddFaculty = () => {
           return;
         }
 
-        // Log the first row to check the data structure
         console.log('Sample row:', processedData[0]);
-
         setExcelData(processedData);
         alert(`Excel file processed successfully! Found ${processedData.length} valid entries.`);
       } catch (error) {
@@ -221,31 +282,54 @@ const AddFaculty = () => {
       alert('Please select a department first.');
       return;
     }
+
+    if (excelData.length === 0) {
+      alert('No data to upload.');
+      return;
+    }
+
+    setLoading(true);
+    setUploadProgress(0);
+    setUploadStats({
+      total: excelData.length,
+      success: 0,
+      failed: 0,
+      skipped: 0,
+      authCreated: 0,
+      authFailed: 0
+    });
+
     try {
       const deptKey = getDepartmentKey(selectedDepartment);
-      const deptRef = doc(db, 'faculty', deptKey);
-      const facultyCollection = collection(deptRef, 'members');
-      let successCount = 0;
-      let skipCount = 0;
+      const batch = writeBatch(db);
+      let batchCount = 0;
+      const maxBatchSize = 500;
 
-      for (const faculty of excelData) {
-        // Skip rows without required fields: name and emailID
+      for (let i = 0; i < excelData.length; i++) {
+        const faculty = excelData[i];
+        
+        // Skip rows without required fields
         if (!faculty.name || !faculty.emailID || faculty.name.trim() === '' || faculty.emailID.trim() === '') {
-          console.log('Skipping entry due to missing name/emailID:', faculty);
-          skipCount++;
+          setUploadStats(prev => ({ ...prev, skipped: prev.skipped + 1 }));
           continue;
         }
 
-        // Check if faculty already exists by emailID
-        const q = query(facultyCollection, where('emailID', '==', faculty.emailID.trim()));
-        const querySnapshot = await getDocs(q);
+        try {
+          // Create Firebase Auth account
+          const authResult = await createFacultyAuthAccount(faculty);
+          
+          if (authResult.success) {
+            setUploadStats(prev => ({ ...prev, authCreated: prev.authCreated + 1 }));
+          } else {
+            setUploadStats(prev => ({ ...prev, authFailed: prev.authFailed + 1 }));
+            console.warn(`Auth creation failed for ${faculty.emailID}:`, authResult.error);
+          }
 
-        if (querySnapshot.empty) {
-          // Clean the data before uploading
-          const cleanedFaculty = {
+          // Clean and prepare faculty data
+          const cleanedFacultyData = {
             empID: faculty.empID?.trim() || '',
             name: faculty.name.trim(),
-            designation: faculty.designation?.trim() || '',
+            designation: faculty.designation?.trim() || 'Lecturer',
             dateOfJoining: faculty.dateOfJoining?.trim() || '',
             qualifications: faculty.qualifications?.trim() || '',
             contactNo: faculty.contactNo?.trim() || '',
@@ -280,89 +364,176 @@ const AddFaculty = () => {
             fatherName: faculty.fatherName?.trim() || '',
             motherName: faculty.motherName?.trim() || '',
             department: selectedDepartment,
-            departmentKey: deptKey,
+            departmentKey: deptKey
           };
 
-          await addDoc(facultyCollection, cleanedFaculty);
-          successCount++;
+          // Create enhanced faculty profile
+          const enhancedFacultyData = createFacultyProfile(
+            cleanedFacultyData,
+            authResult.uid,
+            authResult.email
+          );
+
+          // Use UID as document ID if auth was created, otherwise use empID
+          const documentId = authResult.uid || faculty.empID || `faculty_${Date.now()}_${i}`;
+          const facultyDocRef = doc(db, "faculty", documentId);
+          
+          batch.set(facultyDocRef, enhancedFacultyData);
+          batchCount++;
+
+          // Send welcome email if auth was created
+          if (authResult.success) {
+            await sendWelcomeEmail(authResult.email, faculty.name);
+          }
+
+          setUploadStats(prev => ({ ...prev, success: prev.success + 1 }));
+
+          // Commit batch if it reaches max size
+          if (batchCount >= maxBatchSize) {
+            await batch.commit();
+            batchCount = 0;
+          }
+
+        } catch (error) {
+          console.error(`Error processing faculty ${faculty.name}:`, error);
+          setUploadStats(prev => ({ ...prev, failed: prev.failed + 1 }));
         }
+
+        // Update progress
+        setUploadProgress(((i + 1) / excelData.length) * 100);
       }
 
-      alert(`Upload complete!\nSuccessfully added: ${successCount}\nSkipped entries: ${skipCount}`);
+      // Commit remaining batch
+      if (batchCount > 0) {
+        await batch.commit();
+      }
+
+      alert(`Upload complete!\nSuccessfully added: ${uploadStats.success}\nSkipped entries: ${uploadStats.skipped}\nAuth accounts created: ${uploadStats.authCreated}\nAuth failures: ${uploadStats.authFailed}`);
       setExcelData([]);
     } catch (error) {
       console.error('Error uploading faculty data:', error);
       alert('Failed to upload faculty data. Please try again.');
+    } finally {
+      setLoading(false);
+      setUploadProgress(0);
     }
   };
 
   return (
-    <div className="p-6">
-      <h1 className="text-3xl font-bold mb-6">Add Faculty</h1>
-      {/* Department selection - required before adding or uploading */}
-      <div className="bg-white shadow rounded-lg p-6 mb-6">
-        <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
-        <select
-          value={selectedDepartment}
-          onChange={(e) => setSelectedDepartment(e.target.value)}
-          className="mt-1 block w-full p-2 border border-gray-300 rounded-lg"
-        >
-          <option value="">-- Select Department --</option>
-          {departmentOptions.map((dept) => (
-            <option key={dept} value={dept}>{dept}</option>
-          ))}
-        </select>
-        {!selectedDepartment && (
-          <p className="text-sm text-gray-500 mt-2">Please select a department to enable adding or uploading faculty.</p>
-        )}
-      </div>
-      <form onSubmit={handleSubmit} className="bg-white shadow rounded-lg p-6 mb-6">
-        <div className="grid grid-cols-2 gap-4">
-          {Object.keys(initialFields).map((field) => (
-            <div key={field}>
-              <label htmlFor={field} className="block text-sm font-medium text-gray-700 capitalize">
-                {field.replace(/([A-Z])/g, " $1").toLowerCase()}
-              </label>
-              <input
-                type="text"
-                id={field}
-                name={field}
-                value={facultyData[field]}
-                onChange={handleChange}
-                className="mt-1 block w-full p-2 border border-gray-300 rounded-lg"
-                required={field === "empID"}
-                disabled={!selectedDepartment}
-              />
-            </div>
-          ))}
+    <div className="p-6 max-w-7xl mx-auto">
+      <div className="bg-white shadow-lg rounded-lg overflow-hidden">
+        <div className="bg-gradient-to-r from-blue-600 to-indigo-700 px-6 py-4">
+          <h1 className="text-3xl font-bold text-white">Add Faculty</h1>
+          <p className="text-blue-100 mt-1">Manage faculty members with automatic authentication</p>
         </div>
-        <button
-          type="submit"
-          className={`mt-4 px-4 py-2 rounded-lg text-white ${!selectedDepartment ? "bg-gray-400 cursor-not-allowed" : "bg-blue-500 hover:bg-blue-600"}`}
-          disabled={!selectedDepartment}
-        >
-          Add Faculty
-        </button>
-      </form>
 
-      <div className="bg-white shadow rounded-lg p-6">
-        <h2 className="text-2xl font-bold mb-4">Upload Excel File</h2>
-        <input
-          type="file"
-          accept=".xlsx, .xls"
-          onChange={handleFileUpload}
-          className="block w-full mb-4"
-          disabled={!selectedDepartment}
-        />
-        <button
-          onClick={handleUpload}
-          disabled={excelData.length === 0 || !selectedDepartment}
-          className={`px-4 py-2 rounded-lg text-white ${
-            excelData.length === 0 || !selectedDepartment ? "bg-gray-400 cursor-not-allowed" : "bg-green-500 hover:bg-green-600"
-          }`}
-        >
-          Upload Bulk Data
-        </button>
+        {/* Department selection */}
+        <div className="p-6 border-b border-gray-200">
+          <label className="block text-sm font-medium text-gray-700 mb-2">Department *</label>
+          <select
+            value={selectedDepartment}
+            onChange={(e) => setSelectedDepartment(e.target.value)}
+            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          >
+            <option value="">-- Select Department --</option>
+            {departmentOptions.map((dept) => (
+              <option key={dept} value={dept}>{dept}</option>
+            ))}
+          </select>
+          {!selectedDepartment && (
+            <p className="text-sm text-gray-500 mt-2">Please select a department to enable adding or uploading faculty.</p>
+          )}
+        </div>
+
+        {/* Manual Entry Form */}
+        <div className="p-6 border-b border-gray-200">
+          <h2 className="text-xl font-semibold mb-4">Manual Faculty Entry</h2>
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {Object.keys(initialFields).map((field) => (
+                <div key={field}>
+                  <label htmlFor={field} className="block text-sm font-medium text-gray-700 capitalize mb-1">
+                    {field.replace(/([A-Z])/g, " $1").toLowerCase()}
+                    {(field === "name" || field === "emailID") && <span className="text-red-500">*</span>}
+                  </label>
+                  <input
+                    type="text"
+                    id={field}
+                    name={field}
+                    value={facultyData[field]}
+                    onChange={handleChange}
+                    className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100"
+                    required={field === "name" || field === "emailID"}
+                    disabled={!selectedDepartment || loading}
+                  />
+                </div>
+              ))}
+            </div>
+            <button
+              type="submit"
+              disabled={!selectedDepartment || loading}
+              className={`w-full py-3 px-4 rounded-lg text-white font-medium transition-colors ${
+                !selectedDepartment || loading 
+                  ? "bg-gray-400 cursor-not-allowed" 
+                  : "bg-blue-600 hover:bg-blue-700 focus:ring-2 focus:ring-blue-500"
+              }`}
+            >
+              {loading ? "Adding Faculty..." : "Add Faculty"}
+            </button>
+          </form>
+        </div>
+
+        {/* Bulk Upload Section */}
+        <div className="p-6">
+          <h2 className="text-xl font-semibold mb-4">Bulk Faculty Upload</h2>
+          
+          {/* File Upload */}
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">Upload Excel File</label>
+            <input
+              type="file"
+              accept=".xlsx, .xls"
+              onChange={handleFileUpload}
+              className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+              disabled={!selectedDepartment || loading}
+            />
+            {excelData.length > 0 && (
+              <p className="text-sm text-green-600 mt-2">✓ {excelData.length} entries ready for upload</p>
+            )}
+          </div>
+
+          {/* Upload Progress */}
+          {loading && (
+            <div className="mb-4">
+              <div className="flex justify-between text-sm text-gray-600 mb-1">
+                <span>Upload Progress</span>
+                <span>{Math.round(uploadProgress)}%</span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div 
+                  className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
+                  style={{ width: `${uploadProgress}%` }}
+                ></div>
+              </div>
+              <div className="text-xs text-gray-500 mt-1">
+                Success: {uploadStats.success} | Failed: {uploadStats.failed} | Skipped: {uploadStats.skipped} | Auth Created: {uploadStats.authCreated}
+              </div>
+            </div>
+          )}
+
+          {/* Upload Button */}
+          <button
+            onClick={handleUpload}
+            disabled={excelData.length === 0 || !selectedDepartment || loading}
+            className={`w-full py-3 px-4 rounded-lg text-white font-medium transition-colors ${
+              excelData.length === 0 || !selectedDepartment || loading
+                ? "bg-gray-400 cursor-not-allowed" 
+                : "bg-green-600 hover:bg-green-700 focus:ring-2 focus:ring-green-500"
+            }`}
+          >
+            {loading ? "Uploading..." : `Upload ${excelData.length} Faculty Members`}
+          </button>
+        </div>
       </div>
     </div>
   );
