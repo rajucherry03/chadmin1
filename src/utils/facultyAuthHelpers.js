@@ -173,11 +173,30 @@ export const sendWelcomeEmail = async (email, name) => {
 /**
  * Get faculty profile by UID
  * @param {string} uid - Faculty UID
+ * @param {string} department - Faculty department (optional, will be fetched if not provided)
  * @returns {Object} Faculty profile data
  */
-export const getFacultyProfile = async (uid) => {
+export const getFacultyProfile = async (uid, department = null) => {
   try {
-    const facultyDoc = await getDoc(doc(db, 'faculty', uid));
+    let facultyDoc;
+    
+    if (department) {
+      // If department is provided, use the department path
+      facultyDoc = await getDoc(doc(db, 'faculty', department, uid));
+    } else {
+      // If department is not provided, search across all departments
+      const facultyRef = collection(db, 'faculty');
+      const q = query(facultyRef, where('authUid', '==', uid));
+      const querySnapshot = await getDocs(q);
+      
+      if (!querySnapshot.empty) {
+        const doc = querySnapshot.docs[0];
+        return { success: true, data: { ...doc.data(), uid: doc.id } };
+      } else {
+        return { success: false, error: 'Faculty not found' };
+      }
+    }
+    
     if (facultyDoc.exists()) {
       return { success: true, data: facultyDoc.data() };
     } else {
@@ -196,6 +215,7 @@ export const getFacultyProfile = async (uid) => {
  */
 export const getFacultyByEmail = async (email) => {
   try {
+    // Search across all departments for the faculty with matching email
     const facultyRef = collection(db, 'faculty');
     const q = query(facultyRef, where('emailID', '==', email));
     const querySnapshot = await getDocs(q);
@@ -218,12 +238,13 @@ export const getFacultyByEmail = async (email) => {
 /**
  * Update faculty profile
  * @param {string} uid - Faculty UID
+ * @param {string} department - Faculty department
  * @param {Object} updates - Profile updates
  * @returns {Object} Result object
  */
-export const updateFacultyProfile = async (uid, updates) => {
+export const updateFacultyProfile = async (uid, department, updates) => {
   try {
-    const facultyRef = doc(db, 'faculty', uid);
+    const facultyRef = doc(db, 'faculty', department, uid);
     await updateDoc(facultyRef, {
       ...updates,
       updatedAt: serverTimestamp(),
@@ -280,8 +301,8 @@ export const facultyLogin = async (email, password) => {
     
     const facultyData = facultyResult.data;
     
-    // Update last login
-    await updateDoc(doc(db, 'faculty', facultyData.uid), {
+    // Update last login using department path
+    await updateDoc(doc(db, 'faculty', facultyData.department, facultyData.uid), {
       lastLogin: serverTimestamp()
     });
     
@@ -374,4 +395,70 @@ export const createFacultyProfile = (facultyData, authUid, authEmail) => {
       version: "1.0"
     }
   };
+};
+
+/**
+ * Get all faculty members from a specific department
+ * @param {string} department - Department key
+ * @returns {Object} Result object with faculty list
+ */
+export const getFacultyByDepartment = async (department) => {
+  try {
+    const facultyRef = collection(db, 'faculty', department);
+    const querySnapshot = await getDocs(facultyRef);
+    
+    const facultyList = querySnapshot.docs.map(doc => ({
+      ...doc.data(),
+      uid: doc.id
+    }));
+    
+    return { success: true, data: facultyList };
+  } catch (error) {
+    console.error('Error fetching faculty by department:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Get faculty count by department
+ * @param {string} department - Department key
+ * @returns {Object} Result object with count
+ */
+export const getFacultyCountByDepartment = async (department) => {
+  try {
+    const facultyRef = collection(db, 'faculty', department);
+    const querySnapshot = await getDocs(facultyRef);
+    
+    return { success: true, count: querySnapshot.size };
+  } catch (error) {
+    console.error('Error fetching faculty count by department:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Search faculty across all departments
+ * @param {string} searchTerm - Search term (name, email, or empID)
+ * @returns {Object} Result object with matching faculty
+ */
+export const searchFaculty = async (searchTerm) => {
+  try {
+    const facultyRef = collection(db, 'faculty');
+    const q = query(
+      facultyRef, 
+      where('name', '>=', searchTerm),
+      where('name', '<=', searchTerm + '\uf8ff')
+    );
+    const querySnapshot = await getDocs(q);
+    
+    const facultyList = querySnapshot.docs.map(doc => ({
+      ...doc.data(),
+      uid: doc.id
+    }));
+    
+    return { success: true, data: facultyList };
+  } catch (error) {
+    console.error('Error searching faculty:', error);
+    return { success: false, error: error.message };
+  }
 };

@@ -67,7 +67,7 @@ const FacultyProfile = () => {
       // Remove fields that shouldn't be updated by faculty
       const { authUid, authEmail, role, roleLevel, permissions, status, createdAt, metadata, ...updatableData } = facultyData;
 
-      const result = await updateFacultyProfile(currentUser.uid, updatableData);
+      const result = await updateFacultyProfile(currentUser.uid, facultyData.department, updatableData);
       
       if (result.success) {
         setSuccess('Profile updated successfully!');

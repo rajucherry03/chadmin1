@@ -18,7 +18,7 @@ The enhanced Faculty Management System provides a comprehensive solution for man
 - **Role Level Validation**: Automatic access control based on role levels
 
 ### 📊 Enhanced Data Structure
-- **Unified Faculty Collection**: All faculty data stored in `/faculty/{uid}` structure
+- **Department-Based Organization**: All faculty data stored in `/faculty/{department}/{uid}` structure
 - **Metadata Tracking**: Comprehensive audit trail and versioning
 - **Profile Completion Tracking**: Tracks profile completion status
 - **Last Login Tracking**: Monitors faculty activity
@@ -27,7 +27,7 @@ The enhanced Faculty Management System provides a comprehensive solution for man
 
 ### Data Structure
 ```
-/faculty/{authUid}
+/faculty/{department}/{authUid}
 ├── Personal Information
 │   ├── name, dob, contactNo, emailID
 │   ├── localAddress, permAddress
@@ -45,6 +45,11 @@ The enhanced Faculty Management System provides a comprehensive solution for man
     ├── profileComplete, createdBy
     └── createdFrom, version
 ```
+
+**Example Paths:**
+- `/faculty/CSE/professor_uid_123`
+- `/faculty/ECE/associate_prof_uid_456`
+- `/faculty/ME/lecturer_uid_789`
 
 ### Role Hierarchy
 | Role | Level | Permissions |
@@ -85,14 +90,23 @@ The enhanced Faculty Management System provides a comprehensive solution for man
 // Create Firebase Auth account
 const authResult = await createFacultyAuthAccount(facultyData);
 
-// Get faculty profile
-const profile = await getFacultyProfile(uid);
+// Get faculty profile (with department path)
+const profile = await getFacultyProfile(uid, department);
 
 // Check permissions
 const hasAccess = hasPermission(facultyPermissions, 'edit_grades');
 
 // Faculty login
 const loginResult = await facultyLogin(email, password);
+
+// Get faculty by department
+const deptFaculty = await getFacultyByDepartment('CSE');
+
+// Get faculty count by department
+const count = await getFacultyCountByDepartment('ECE');
+
+// Search faculty across departments
+const searchResults = await searchFaculty('John');
 ```
 
 ### 3. FacultyProfile Component (`src/components/FacultyProfile.jsx`)
@@ -188,6 +202,17 @@ if (hasRoleLevel(faculty.roleLevel, 2)) {
 }
 ```
 
+#### Department-Based Queries
+```javascript
+import { getFacultyByDepartment, getFacultyCountByDepartment } from '../utils/facultyAuthHelpers';
+
+// Get all faculty from a department
+const cseFaculty = await getFacultyByDepartment('CSE');
+
+// Get faculty count by department
+const eceCount = await getFacultyCountByDepartment('ECE');
+```
+
 #### Component Protection
 ```jsx
 const ProtectedComponent = ({ faculty, requiredPermission, children }) => {
@@ -222,7 +247,8 @@ if (!validation.isValid) {
 - **Email Verification**: Password reset emails for initial access
 
 ### 2. Data Security
-- **UID-based Documents**: Firebase Auth UID as document ID
+- **Department-based Organization**: Faculty organized by department for better access control
+- **UID-based Documents**: Firebase Auth UID as document ID within department
 - **Permission Validation**: Server-side permission checking
 - **Role-based Access**: Hierarchical access control
 

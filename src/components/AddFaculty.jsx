@@ -172,9 +172,9 @@ const AddFaculty = () => {
         authResult.email
       );
 
-      // Store in Firestore with UID as document ID if auth was created
+      // Store in Firestore with department path: /faculty/{department}/{uid}
       const documentId = authResult.uid || facultyData.empID;
-      const facultyDocRef = doc(db, "faculty", documentId);
+      const facultyDocRef = doc(db, "faculty", deptKey, documentId);
       
       await setDoc(facultyDocRef, enhancedFacultyData);
 
@@ -376,7 +376,7 @@ const AddFaculty = () => {
 
           // Use UID as document ID if auth was created, otherwise use empID
           const documentId = authResult.uid || faculty.empID || `faculty_${Date.now()}_${i}`;
-          const facultyDocRef = doc(db, "faculty", documentId);
+          const facultyDocRef = doc(db, "faculty", deptKey, documentId);
           
           batch.set(facultyDocRef, enhancedFacultyData);
           batchCount++;
