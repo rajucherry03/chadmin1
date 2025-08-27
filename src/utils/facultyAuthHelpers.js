@@ -99,9 +99,7 @@ export const generateFacultyEmail = (name, empID) => {
  * @returns {string} Generated password
  */
 export const generateFacultyPassword = (empID, name) => {
-  const timestamp = Date.now().toString().slice(-6);
-  const cleanName = name.toLowerCase().replace(/[^a-z]/g, '').slice(0, 3);
-  return `${cleanName}${empID}@${timestamp}`;
+  return "Mits@1234";
 };
 
 /**

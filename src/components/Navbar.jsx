@@ -33,6 +33,7 @@ import {
   FaChartLine,
   FaBriefcase,
   FaFlask,
+  FaCommentDots,
 } from "react-icons/fa";
 
 const AdminNavbar = () => {
@@ -194,6 +195,12 @@ const AdminNavbar = () => {
       title: "Research & Development",
       icon: FaFlask,
       to: "/research-development",
+      links: [],
+    },
+    {
+      title: "Feedback Management",
+      icon: FaCommentDots,
+      to: "/feedback-management",
       links: [],
     },
   ]), []);

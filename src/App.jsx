@@ -16,6 +16,7 @@ const StudentRegistration = lazy(() => import("./components/StudentRegistration.
 const FormCustomizer = lazy(() => import("./components/FormCustomizer.jsx"));
 const Faculty = lazy(() => import("./components/Faculty-manage.jsx"));
 const FacultyManagement = lazy(() => import("./components/FacultyManagement.jsx"));
+const FacultyViewer = lazy(() => import("./components/FacultyViewer.jsx"));
 const AddFaculty = lazy(() => import("./components/AddFaculty.jsx"));
 const AddCourse = lazy(() => import("./components/AddCourse.jsx"));
 const Courses = lazy(() => import("./components/Courses.jsx"));
@@ -52,6 +53,7 @@ const GradesManagement = lazy(() => import("./components/GradesManagement/Grades
 const EventManagement = lazy(() => import("./components/EventManagement/EventManagement.jsx"));
 const InternshipPlacementManagement = lazy(() => import("./components/InternshipPlacementManagement/InternshipPlacementManagement.jsx"));
 const ResearchDevelopment = lazy(() => import("./components/RnD/ResearchDevelopment.jsx"));
+const FeedbackManagement = lazy(() => import("./components/FeedbackManagement/FeedbackManagement.jsx"));
 
 // Private Route Wrapper
 const PrivateRoute = ({ children }) => {
@@ -107,6 +109,7 @@ function App() {
                             <Route path="/courses" element={<Courses />} />
                             <Route path="/relationships" element={<Relationships />} />
                             <Route path="/facultyassignments" element={<FacultyAssignments />} />
+                            <Route path="/faculty/:deptKey/members/:memberId" element={<FacultyViewer />} />
                             <Route path="/nodues" element={<NoDues />} />
                             <Route path="/noduesmanagement" element={<NoDuesManagement />} />
                             <Route path="/weeklytimetable" element={<WeeklyTimetable />} />
@@ -138,6 +141,7 @@ function App() {
                             <Route path="/event-management" element={<EventManagement />} />
                             <Route path="/internship-placement" element={<InternshipPlacementManagement />} />
                             <Route path="/research-development/*" element={<ResearchDevelopment />} />
+                            <Route path="/feedback-management/*" element={<FeedbackManagement />} />
                           </Routes>
                         </div>
                       </div>

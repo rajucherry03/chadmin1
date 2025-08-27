@@ -7,13 +7,13 @@ import { getStorage } from "firebase/storage";
 import { handleFirebaseAnalyticsError } from "./utils/errorHandler.js";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyDMq44NwFG_TPNlLrDl1jJiSvOUNGyyOB8",
-  authDomain: "ch360-ds-erp-ab6dc.firebaseapp.com",
-  projectId: "ch360-ds-erp-ab6dc",
-  storageBucket: "ch360-ds-erp-ab6dc.firebasestorage.app",
-  messagingSenderId: "295094389979",
-  appId: "1:295094389979:web:38c38f72ddc4170d2090fe",
-  measurementId: "G-0TTF6S70RJ"
+  apiKey: "AIzaSyC2w0vh_kiAGXTmRDx69iMgPcqObi_-Zw0",
+  authDomain: "ch360-d-erp.firebaseapp.com",
+  projectId: "ch360-d-erp",
+  storageBucket: "ch360-d-erp.firebasestorage.app",
+  messagingSenderId: "119584645450",
+  appId: "1:119584645450:web:de17d423561eb9524e61b3",
+  measurementId: "G-51YTY1SYYK"
 };
 
 const app = initializeApp(firebaseConfig);
@@ -32,7 +32,7 @@ export const db = initializeFirestore(app, {
   cacheSizeBytes: 100 * 1024 * 1024, // 100MB cache for better resilience
   ignoreUndefinedProperties: true, // Drop undefined fields to avoid 400 Write errors
   experimentalAutoDetectLongPolling: true, // Auto-detect fallback for restricted networks
-});
+})
 
 // Network connectivity management
 export const firestoreNetworkManager = {

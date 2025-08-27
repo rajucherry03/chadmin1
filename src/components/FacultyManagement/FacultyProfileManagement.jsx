@@ -54,12 +54,15 @@ import {
   faSearch,
   faFilter,
   faSort,
+  faSortUp,
+  faSortDown,
   faEllipsisVertical,
   faList
 } from "@fortawesome/free-solid-svg-icons";
-import { db } from "../../firebase";
+import { db, auth } from "../../firebase";
 import {
   collection,
+  collectionGroup,
   getDocs,
   query,
   where,
@@ -71,6 +74,7 @@ import {
   doc,
   serverTimestamp
 } from "firebase/firestore";
+import { sendPasswordResetEmail } from "firebase/auth";
 
 const FacultyProfileManagement = () => {
   const [faculty, setFaculty] = useState([]);
@@ -165,11 +169,41 @@ const FacultyProfileManagement = () => {
 
   useEffect(() => {
     const unsubscribe = onSnapshot(
-      collection(db, "faculty"),
+      collectionGroup(db, "members"),
       (snapshot) => {
         const facultyData = [];
-        snapshot.forEach((doc) => {
-          facultyData.push({ id: doc.id, ...doc.data() });
+        snapshot.forEach((docSnap) => {
+          const d = docSnap.data() || {};
+          const mapped = {
+            id: docSnap.id,
+            _path: docSnap.ref.path,
+            personalDetails: {
+              name: d.name || "",
+              email: d.authEmail || d.emailID || "",
+              phone: d.contactNo || "",
+              dateOfBirth: d.dob || "",
+              address: d.localAddress || ""
+            },
+            employmentDetails: {
+              employeeId: d.empID || "",
+              department: d.department || d.departmentKey || "",
+              designation: d.designation || "",
+              joiningDate: d.dateOfJoining || "",
+              status: d.status || "Active"
+            },
+            academicQualifications: {
+              highestQualification: d.qualifications || "",
+              specialization: d.areaOfSpecialization || ""
+            },
+            bankDetails: {
+              bankName: d.bankName || "",
+              accountNumber: d.bankAccountNumber || "",
+              ifscCode: d.ifsc || ""
+            },
+            authUid: d.authUid || d.uid || "",
+            authEmail: d.authEmail || d.emailID || ""
+          };
+          facultyData.push(mapped);
         });
         setFaculty(facultyData);
         setLoading(false);
@@ -178,6 +212,21 @@ const FacultyProfileManagement = () => {
 
     return () => unsubscribe();
   }, []);
+
+  const handlePasswordReset = async (member) => {
+    try {
+      const email = member?.authEmail || member?.personalDetails?.email;
+      if (!email) {
+        alert("No email found for this faculty member.");
+        return;
+      }
+      await sendPasswordResetEmail(auth, email);
+      alert(`Password reset email sent to ${email}`);
+    } catch (e) {
+      console.error("Failed to send reset email", e);
+      alert("Failed to send password reset email.");
+    }
+  };
 
   const handleAddFaculty = () => {
     setSelectedFaculty(null);
@@ -1112,6 +1161,13 @@ const FacultyProfileManagement = () => {
                       <FontAwesomeIcon icon={faEdit} />
                     </button>
                     <button
+                      onClick={() => handlePasswordReset(member)}
+                      className="p-2 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                      title="Reset Password"
+                    >
+                      <FontAwesomeIcon icon={faUserLock} />
+                    </button>
+                    <button
                       className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
                       title="View"
                     >
@@ -1198,6 +1254,13 @@ const FacultyProfileManagement = () => {
                           title="Edit"
                         >
                           <FontAwesomeIcon icon={faEdit} />
+                        </button>
+                        <button
+                          onClick={() => handlePasswordReset(member)}
+                          className="p-2 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                          title="Reset Password"
+                        >
+                          <FontAwesomeIcon icon={faUserLock} />
                         </button>
                         <button
                           className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"

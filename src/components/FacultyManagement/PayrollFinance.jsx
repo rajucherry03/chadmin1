@@ -4,6 +4,7 @@ import {
   faMoneyBillWave,
   faCalculator,
   faFileInvoice,
+  faFileInvoiceDollar,
   faDownload,
   faPlus,
   faEdit,
