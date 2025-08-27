@@ -1,220 +1,193 @@
 import React, { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
-  faFileAlt, faUserGraduate, faBuilding, faClock, faCheckCircle,
-  faTimesCircle, faEye, faDownload, faUpload, faPlus, faEdit,
-  faTrash, faSearch, faFilter, faSort, faSortUp, faSortDown,
-  faCalendarAlt, faMapMarkerAlt, faMoneyBillWave, faIndustry,
-  faExclamationTriangle, faInfoCircle, faThumbsUp, faThumbsDown,
-  faHourglassHalf, faUserCheck, faUserTimes, faArrowRight,
-  faArrowLeft, faRefresh, faPrint, faShare, faEnvelope, faPhone
+  faFileAlt, faUserGraduate, faCheckCircle, faTimesCircle, faClock,
+  faEye, faEdit, faTrash, faDownload, faEnvelope, faPhone,
+  faCalendarAlt, faBuilding, faMapMarkerAlt, faMoneyBillWave,
+  faTimes, faSave, faExclamationTriangle, faUserCheck, faUserTimes, faBriefcase
 } from '@fortawesome/free-solid-svg-icons';
-import internshipPlacementService from './services/internshipPlacementService';
+import { db } from '../../firebase';
+import { 
+  collection, 
+  addDoc, 
+  updateDoc, 
+  deleteDoc, 
+  doc, 
+  serverTimestamp
+} from 'firebase/firestore';
 
-const StudentApplications = ({ userRole }) => {
-  const [applications, setApplications] = useState([]);
-  const [filteredApplications, setFilteredApplications] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [showApplyModal, setShowApplyModal] = useState(false);
+const StudentApplications = ({ 
+  userRole, 
+  applications, 
+  internships, 
+  students, 
+  loading, 
+  error,
+  searchTerm 
+}) => {
   const [showViewModal, setShowViewModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [selectedApplication, setSelectedApplication] = useState(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filters, setFilters] = useState({
-    status: '',
-    facultyApproval: '',
-    companyResponse: '',
-    internshipId: ''
-  });
-  const [sortBy, setSortBy] = useState('createdAt');
-  const [sortOrder, setSortOrder] = useState('desc');
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [filterInternship, setFilterInternship] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
 
-  // Form states for applying
   const [formData, setFormData] = useState({
-    internshipId: '',
-    studentId: '',
-    studentName: '',
-    studentEmail: '',
-    studentPhone: '',
-    department: '',
-    year: '',
-    cgpa: '',
-    resume: null,
-    coverLetter: '',
-    portfolio: '',
-    sop: '',
-    skills: [],
-    experience: '',
-    projects: '',
-    achievements: '',
-    references: []
+    status: '',
+    feedback: '',
+    interviewDate: '',
+    interviewLocation: '',
+    notes: ''
   });
 
-  const [internships, setInternships] = useState([]);
+  const [formErrors, setFormErrors] = useState({});
 
-  useEffect(() => {
-    loadApplications();
-    loadInternships();
-  }, []);
+  // Filter applications
+  const filteredApplications = applications.filter(application => {
+    const matchesSearch = !searchTerm || 
+      application.studentName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      application.internshipTitle?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      application.companyName?.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesStatus = filterStatus === 'all' || application.status === filterStatus;
+    const matchesInternship = filterInternship === 'all' || application.internshipId === filterInternship;
+    
+    return matchesSearch && matchesStatus && matchesInternship;
+  });
 
-  useEffect(() => {
-    filterAndSortApplications();
-  }, [applications, searchTerm, filters, sortBy, sortOrder]);
+  // Pagination
+  const totalPages = Math.ceil(filteredApplications.length / itemsPerPage);
+  const paginatedApplications = filteredApplications.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
-  const loadApplications = async () => {
-    try {
-      setLoading(true);
-      const data = await internshipPlacementService.getApplications();
-      setApplications(data);
-    } catch (error) {
-      console.error('Error loading applications:', error);
-    } finally {
-      setLoading(false);
-    }
+  const handleView = (application) => {
+    setSelectedApplication(application);
+    setShowViewModal(true);
   };
 
-  const loadInternships = async () => {
-    try {
-      const data = await internshipPlacementService.getInternships({ status: 'active' });
-      setInternships(data);
-    } catch (error) {
-      console.error('Error loading internships:', error);
-    }
-  };
-
-  const filterAndSortApplications = () => {
-    let filtered = [...applications];
-
-    // Apply search filter
-    if (searchTerm) {
-      filtered = filtered.filter(application =>
-        application.studentName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        application.internshipTitle?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        application.companyName?.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
-
-    // Apply filters
-    if (filters.status) {
-      filtered = filtered.filter(application => application.status === filters.status);
-    }
-    if (filters.facultyApproval) {
-      filtered = filtered.filter(application => application.facultyApproval === filters.facultyApproval);
-    }
-    if (filters.companyResponse) {
-      filtered = filtered.filter(application => application.companyResponse === filters.companyResponse);
-    }
-    if (filters.internshipId) {
-      filtered = filtered.filter(application => application.internshipId === filters.internshipId);
-    }
-
-    // Apply sorting
-    filtered.sort((a, b) => {
-      let aValue = a[sortBy];
-      let bValue = b[sortBy];
-
-      if (sortBy === 'createdAt' || sortBy === 'updatedAt') {
-        aValue = new Date(aValue);
-        bValue = new Date(bValue);
-      }
-
-      if (sortOrder === 'asc') {
-        return aValue > bValue ? 1 : -1;
-      } else {
-        return aValue < bValue ? 1 : -1;
-      }
+  const handleEdit = (application) => {
+    setFormData({
+      status: application.status || '',
+      feedback: application.feedback || '',
+      interviewDate: application.interviewDate || '',
+      interviewLocation: application.interviewLocation || '',
+      notes: application.notes || ''
     });
-
-    setFilteredApplications(filtered);
+    setSelectedApplication(application);
+    setFormErrors({});
+    setShowEditModal(true);
   };
 
-  const handleApplyForInternship = async (e) => {
-    e.preventDefault();
-    try {
-      const applicationData = {
-        ...formData,
-        internshipId: formData.internshipId,
-        studentId: formData.studentId || 'current-user-id', // This would come from auth
-        status: 'pending',
-        facultyApproval: 'pending',
-        companyResponse: 'pending'
-      };
-
-      await internshipPlacementService.applyForInternship(applicationData);
-      setShowApplyModal(false);
-      setFormData({
-        internshipId: '',
-        studentId: '',
-        studentName: '',
-        studentEmail: '',
-        studentPhone: '',
-        department: '',
-        year: '',
-        cgpa: '',
-        resume: null,
-        coverLetter: '',
-        portfolio: '',
-        sop: '',
-        skills: [],
-        experience: '',
-        projects: '',
-        achievements: '',
-        references: []
-      });
-      loadApplications();
-    } catch (error) {
-      console.error('Error applying for internship:', error);
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+    
+    if (formErrors[name]) {
+      setFormErrors(prev => ({
+        ...prev,
+        [name]: ''
+      }));
     }
   };
 
-  const handleFileUpload = (e, field) => {
-    const file = e.target.files[0];
-    if (file) {
-      setFormData({ ...formData, [field]: file });
+  const validateForm = () => {
+    const errors = {};
+    
+    if (!formData.status) errors.status = 'Status is required';
+    
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!validateForm()) return;
+    
+    try {
+      const updateData = {
+        ...formData,
+        updatedAt: serverTimestamp(),
+        updatedBy: userRole
+      };
+      
+      await updateDoc(doc(db, 'applications', selectedApplication.id), updateData);
+      
+      setShowEditModal(false);
+      setSelectedApplication(null);
+      setFormData({
+        status: '',
+        feedback: '',
+        interviewDate: '',
+        interviewLocation: '',
+        notes: ''
+      });
+    } catch (error) {
+      console.error('Error updating application:', error);
+      setFormErrors({ submit: 'Failed to update application. Please try again.' });
+    }
+  };
+
+  const handleDelete = async (application) => {
+    if (window.confirm('Are you sure you want to delete this application?')) {
+      try {
+        await deleteDoc(doc(db, 'applications', application.id));
+      } catch (error) {
+        console.error('Error deleting application:', error);
+        alert('Failed to delete application. Please try again.');
+      }
     }
   };
 
   const getStatusColor = (status) => {
     switch (status) {
-      case 'pending':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'faculty_approved':
-        return 'bg-blue-100 text-blue-800';
+      case 'placed':
       case 'accepted':
-        return 'bg-green-100 text-green-800';
-      case 'rejected':
-        return 'bg-red-100 text-red-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const getApprovalColor = (approval) => {
-    switch (approval) {
+        return 'text-green-600 bg-green-100';
       case 'pending':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'approved':
-        return 'bg-green-100 text-green-800';
+      case 'under_review':
+        return 'text-yellow-600 bg-yellow-100';
       case 'rejected':
-        return 'bg-red-100 text-red-800';
+      case 'withdrawn':
+        return 'text-red-600 bg-red-100';
+      case 'interview_scheduled':
+        return 'text-blue-600 bg-blue-100';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'text-gray-600 bg-gray-100';
     }
   };
 
-  const formatDate = (date) => {
-    if (date instanceof Date) {
-      return date.toLocaleDateString();
+  const getStatusIcon = (status) => {
+    switch (status) {
+      case 'placed':
+      case 'accepted':
+        return faCheckCircle;
+      case 'pending':
+      case 'under_review':
+        return faClock;
+      case 'rejected':
+      case 'withdrawn':
+        return faTimesCircle;
+      case 'interview_scheduled':
+        return faUserCheck;
+      default:
+        return faFileAlt;
     }
-    return new Date(date).toLocaleDateString();
   };
 
-  // Pagination
-  const indexOfLastItem = currentPage * itemsPerPage;
-  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentItems = filteredApplications.slice(indexOfFirstItem, indexOfLastItem);
-  const totalPages = Math.ceil(filteredApplications.length / itemsPerPage);
+  const getStudentInfo = (studentId) => {
+    return students.find(student => student.id === studentId) || {};
+  };
+
+  const getInternshipInfo = (internshipId) => {
+    return internships.find(internship => internship.id === internshipId) || {};
+  };
 
   if (loading) {
     return (
@@ -222,7 +195,7 @@ const StudentApplications = ({ userRole }) => {
         <div className="animate-pulse">
           <div className="h-8 bg-gray-200 rounded w-1/4 mb-6"></div>
           <div className="space-y-4">
-            {[...Array(5)].map((_, i) => (
+            {[1, 2, 3].map(i => (
               <div key={i} className="h-20 bg-gray-200 rounded"></div>
             ))}
           </div>
@@ -237,593 +210,454 @@ const StudentApplications = ({ userRole }) => {
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Student Applications</h1>
-          <p className="text-gray-600">
-            Track and manage your internship applications
-          </p>
+          <p className="text-gray-600">Manage and track student applications for internships</p>
         </div>
-        {userRole === 'student' && (
-          <button
-            onClick={() => setShowApplyModal(true)}
-            className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+        <div className="flex space-x-3">
+          <select
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+            className="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            <FontAwesomeIcon icon={faPlus} />
-            <span>Apply for Internship</span>
-          </button>
+            <option value="all">All Status</option>
+            <option value="pending">Pending</option>
+            <option value="under_review">Under Review</option>
+            <option value="interview_scheduled">Interview Scheduled</option>
+            <option value="accepted">Accepted</option>
+            <option value="placed">Placed</option>
+            <option value="rejected">Rejected</option>
+            <option value="withdrawn">Withdrawn</option>
+          </select>
+          <select
+            value={filterInternship}
+            onChange={(e) => setFilterInternship(e.target.value)}
+            className="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="all">All Internships</option>
+            {internships.map(internship => (
+              <option key={internship.id} value={internship.id}>{internship.title}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* Statistics */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div className="bg-white p-4 rounded-lg shadow-sm border">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600">Total Applications</p>
+              <p className="text-2xl font-bold text-gray-900">{applications.length}</p>
+            </div>
+            <FontAwesomeIcon icon={faFileAlt} className="text-blue-600 text-xl" />
+          </div>
+        </div>
+        
+        <div className="bg-white p-4 rounded-lg shadow-sm border">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600">Pending Review</p>
+              <p className="text-2xl font-bold text-yellow-600">
+                {applications.filter(app => app.status === 'pending' || app.status === 'under_review').length}
+              </p>
+            </div>
+            <FontAwesomeIcon icon={faClock} className="text-yellow-600 text-xl" />
+          </div>
+        </div>
+        
+        <div className="bg-white p-4 rounded-lg shadow-sm border">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600">Accepted/Placed</p>
+              <p className="text-2xl font-bold text-green-600">
+                {applications.filter(app => app.status === 'accepted' || app.status === 'placed').length}
+              </p>
+            </div>
+            <FontAwesomeIcon icon={faCheckCircle} className="text-green-600 text-xl" />
+          </div>
+        </div>
+        
+        <div className="bg-white p-4 rounded-lg shadow-sm border">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600">Rejected</p>
+              <p className="text-2xl font-bold text-red-600">
+                {applications.filter(app => app.status === 'rejected').length}
+              </p>
+            </div>
+            <FontAwesomeIcon icon={faTimesCircle} className="text-red-600 text-xl" />
+          </div>
+        </div>
+      </div>
+
+      {/* Applications Table */}
+      <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Student
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Internship
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Company
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Applied Date
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Status
+                </th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {paginatedApplications.map((application) => {
+                const student = getStudentInfo(application.studentId);
+                const internship = getInternshipInfo(application.internshipId);
+                
+                return (
+                  <tr key={application.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div>
+                        <div className="text-sm font-medium text-gray-900">{application.studentName || student.name}</div>
+                        <div className="text-sm text-gray-500">{student.email || application.studentEmail}</div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div>
+                        <div className="text-sm font-medium text-gray-900">{application.internshipTitle || internship.title}</div>
+                        <div className="text-sm text-gray-500">{internship.department}</div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-900">{application.companyName || internship.companyName}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-900">
+                        {application.createdAt ? new Date(application.createdAt).toLocaleDateString() : 'N/A'}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(application.status)}`}>
+                        <FontAwesomeIcon icon={getStatusIcon(application.status)} className="mr-1" />
+                        {application.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                      <div className="flex items-center justify-end space-x-2">
+                        <button
+                          onClick={() => handleView(application)}
+                          className="text-blue-600 hover:text-blue-900"
+                          title="View Details"
+                        >
+                          <FontAwesomeIcon icon={faEye} />
+                        </button>
+                        <button
+                          onClick={() => handleEdit(application)}
+                          className="text-green-600 hover:text-green-900"
+                          title="Edit"
+                        >
+                          <FontAwesomeIcon icon={faEdit} />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(application)}
+                          className="text-red-600 hover:text-red-900"
+                          title="Delete"
+                        >
+                          <FontAwesomeIcon icon={faTrash} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
+            <div className="flex-1 flex justify-between sm:hidden">
+              <button
+                onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                disabled={currentPage === 1}
+                className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+              >
+                Previous
+              </button>
+              <button
+                onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                disabled={currentPage === totalPages}
+                className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+              >
+                Next
+              </button>
+            </div>
+            <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm text-gray-700">
+                  Showing <span className="font-medium">{(currentPage - 1) * itemsPerPage + 1}</span> to{' '}
+                  <span className="font-medium">
+                    {Math.min(currentPage * itemsPerPage, filteredApplications.length)}
+                  </span>{' '}
+                  of <span className="font-medium">{filteredApplications.length}</span> results
+                </p>
+              </div>
+              <div>
+                <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                    <button
+                      key={page}
+                      onClick={() => setCurrentPage(page)}
+                      className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
+                        page === currentPage
+                          ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
+                          : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  ))}
+                </nav>
+              </div>
+            </div>
+          </div>
         )}
       </div>
 
-      {/* Search and Filters */}
-      <div className="bg-white p-6 rounded-lg shadow-sm border mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* Search */}
-          <div className="lg:col-span-2">
-            <div className="relative">
-              <FontAwesomeIcon icon={faSearch} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search applications..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-          </div>
-
-          {/* Status Filter */}
-          <select
-            value={filters.status}
-            onChange={(e) => setFilters({ ...filters, status: e.target.value })}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="">All Status</option>
-            <option value="pending">Pending</option>
-            <option value="faculty_approved">Faculty Approved</option>
-            <option value="accepted">Accepted</option>
-            <option value="rejected">Rejected</option>
-          </select>
-
-          {/* Faculty Approval Filter */}
-          <select
-            value={filters.facultyApproval}
-            onChange={(e) => setFilters({ ...filters, facultyApproval: e.target.value })}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="">All Faculty Approval</option>
-            <option value="pending">Pending</option>
-            <option value="approved">Approved</option>
-            <option value="rejected">Rejected</option>
-          </select>
-        </div>
-
-        {/* Additional Filters */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-          <select
-            value={filters.companyResponse}
-            onChange={(e) => setFilters({ ...filters, companyResponse: e.target.value })}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="">All Company Response</option>
-            <option value="pending">Pending</option>
-            <option value="accepted">Accepted</option>
-            <option value="rejected">Rejected</option>
-          </select>
-
-          <select
-            value={filters.internshipId}
-            onChange={(e) => setFilters({ ...filters, internshipId: e.target.value })}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="">All Internships</option>
-            {internships.map(internship => (
-              <option key={internship.id} value={internship.id}>
-                {internship.title}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="createdAt">Date Applied</option>
-            <option value="updatedAt">Last Updated</option>
-            <option value="studentName">Student Name</option>
-            <option value="internshipTitle">Internship Title</option>
-          </select>
-        </div>
-      </div>
-
-      {/* Results Count */}
-      <div className="flex justify-between items-center mb-4">
-        <p className="text-gray-600">
-          Showing {filteredApplications.length} applications
-        </p>
-        <button
-          onClick={() => {
-            setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-          }}
-          className="flex items-center space-x-2 text-gray-600 hover:text-gray-800"
-        >
-          <FontAwesomeIcon icon={sortOrder === 'asc' ? faSortUp : faSortDown} />
-          <span>Sort</span>
-        </button>
-      </div>
-
-      {/* Applications List */}
-      <div className="space-y-4">
-        {currentItems.map((application) => (
-          <div key={application.id} className="bg-white rounded-lg shadow-sm border p-6">
-            <div className="flex justify-between items-start">
-              <div className="flex-1">
-                <div className="flex items-center space-x-4 mb-4">
-                  <div className="flex-1">
-                    <h3 className="text-lg font-semibold text-gray-900">
-                      {application.internshipTitle || 'Internship Title'}
-                    </h3>
-                    <p className="text-sm text-gray-600">
-                      {application.companyName || 'Company Name'}
-                    </p>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(application.status)}`}>
-                      {application.status}
-                    </span>
-                    <span className={`px-2 py-1 text-xs rounded-full ${getApprovalColor(application.facultyApproval)}`}>
-                      Faculty: {application.facultyApproval}
-                    </span>
-                    <span className={`px-2 py-1 text-xs rounded-full ${getApprovalColor(application.companyResponse)}`}>
-                      Company: {application.companyResponse}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                  <div className="flex items-center space-x-2 text-sm text-gray-600">
-                    <FontAwesomeIcon icon={faUserGraduate} />
-                    <span>{application.studentName || 'Student Name'}</span>
-                  </div>
-                  <div className="flex items-center space-x-2 text-sm text-gray-600">
-                    <FontAwesomeIcon icon={faCalendarAlt} />
-                    <span>Applied: {formatDate(application.createdAt)}</span>
-                  </div>
-                  <div className="flex items-center space-x-2 text-sm text-gray-600">
-                    <FontAwesomeIcon icon={faClock} />
-                    <span>Updated: {formatDate(application.updatedAt)}</span>
-                  </div>
-                </div>
-
-                {application.coverLetter && (
-                  <p className="text-sm text-gray-600 mb-4 line-clamp-2">
-                    {application.coverLetter}
-                  </p>
-                )}
-              </div>
-
-              <div className="flex items-center space-x-2 ml-4">
-                <button
-                  onClick={() => {
-                    setSelectedApplication(application);
-                    setShowViewModal(true);
-                  }}
-                  className="p-2 text-gray-400 hover:text-gray-600"
-                >
-                  <FontAwesomeIcon icon={faEye} />
-                </button>
-                {userRole === 'student' && (
-                  <>
-                    <button
-                      onClick={() => {
-                        setFormData(application);
-                        setShowApplyModal(true);
-                      }}
-                      className="p-2 text-gray-400 hover:text-blue-600"
-                    >
-                      <FontAwesomeIcon icon={faEdit} />
-                    </button>
-                    <button
-                      onClick={() => {
-                        if (window.confirm('Are you sure you want to withdraw this application?')) {
-                          // Handle withdrawal
-                        }
-                      }}
-                      className="p-2 text-gray-400 hover:text-red-600"
-                    >
-                      <FontAwesomeIcon icon={faTrash} />
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex justify-center items-center space-x-2 mt-8">
-          <button
-            onClick={() => setCurrentPage(currentPage - 1)}
-            disabled={currentPage === 1}
-            className="px-3 py-2 border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-          >
-            <FontAwesomeIcon icon={faArrowLeft} />
-          </button>
-          
-          {[...Array(totalPages)].map((_, index) => (
-            <button
-              key={index + 1}
-              onClick={() => setCurrentPage(index + 1)}
-              className={`px-3 py-2 border rounded-lg ${
-                currentPage === index + 1
-                  ? 'bg-blue-600 text-white border-blue-600'
-                  : 'border-gray-300 hover:bg-gray-50'
-              }`}
-            >
-              {index + 1}
-            </button>
-          ))}
-          
-          <button
-            onClick={() => setCurrentPage(currentPage + 1)}
-            disabled={currentPage === totalPages}
-            className="px-3 py-2 border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-          >
-            <FontAwesomeIcon icon={faArrowRight} />
-          </button>
-        </div>
-      )}
-
-      {/* Apply for Internship Modal */}
-      {showApplyModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold">
-                {formData.id ? 'Edit Application' : 'Apply for Internship'}
-              </h2>
+      {/* View Modal */}
+      {showViewModal && selectedApplication && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-2/3 shadow-lg rounded-md bg-white">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-medium text-gray-900">Application Details</h3>
               <button
-                onClick={() => setShowApplyModal(false)}
+                onClick={() => setShowViewModal(false)}
                 className="text-gray-400 hover:text-gray-600"
               >
-                <FontAwesomeIcon icon={faTimesCircle} className="text-xl" />
+                <FontAwesomeIcon icon={faTimes} />
               </button>
             </div>
 
-            <form onSubmit={handleApplyForInternship} className="space-y-6">
+            <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Select Internship *
-                  </label>
-                  <select
-                    required
-                    value={formData.internshipId}
-                    onChange={(e) => setFormData({ ...formData, internshipId: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">Select an internship</option>
-                    {internships.map(internship => (
-                      <option key={internship.id} value={internship.id}>
-                        {internship.title} - {internship.companyName}
-                      </option>
-                    ))}
-                  </select>
+                  <h4 className="text-lg font-semibold text-gray-900 mb-4">Student Information</h4>
+                  <div className="space-y-3">
+                    <div className="flex items-center">
+                      <FontAwesomeIcon icon={faUserGraduate} className="text-gray-400 w-4 mr-3" />
+                      <span className="text-gray-900">{selectedApplication.studentName}</span>
+                    </div>
+                    <div className="flex items-center">
+                      <FontAwesomeIcon icon={faEnvelope} className="text-gray-400 w-4 mr-3" />
+                      <span className="text-gray-900">{selectedApplication.studentEmail}</span>
+                    </div>
+                    <div className="flex items-center">
+                      <FontAwesomeIcon icon={faPhone} className="text-gray-400 w-4 mr-3" />
+                      <span className="text-gray-900">{selectedApplication.studentPhone || 'Not provided'}</span>
+                    </div>
+                  </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Student Name *
-                  </label>
+                  <h4 className="text-lg font-semibold text-gray-900 mb-4">Internship Information</h4>
+                  <div className="space-y-3">
+                    <div className="flex items-center">
+                      <FontAwesomeIcon icon={faBriefcase} className="text-gray-400 w-4 mr-3" />
+                      <span className="text-gray-900">{selectedApplication.internshipTitle}</span>
+                    </div>
+                    <div className="flex items-center">
+                      <FontAwesomeIcon icon={faBuilding} className="text-gray-400 w-4 mr-3" />
+                      <span className="text-gray-900">{selectedApplication.companyName}</span>
+                    </div>
+                    <div className="flex items-center">
+                      <FontAwesomeIcon icon={faMapMarkerAlt} className="text-gray-400 w-4 mr-3" />
+                      <span className="text-gray-900">{selectedApplication.location || 'Not specified'}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <h5 className="font-medium text-gray-900 mb-3">Application Status</h5>
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Status:</span>
+                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(selectedApplication.status)}`}>
+                      <FontAwesomeIcon icon={getStatusIcon(selectedApplication.status)} className="mr-1" />
+                      {selectedApplication.status}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Applied Date:</span>
+                    <span className="font-medium">
+                      {selectedApplication.createdAt ? new Date(selectedApplication.createdAt).toLocaleDateString() : 'Not available'}
+                    </span>
+                  </div>
+                  {selectedApplication.interviewDate && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Interview Date:</span>
+                      <span className="font-medium">
+                        {new Date(selectedApplication.interviewDate).toLocaleDateString()}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {selectedApplication.feedback && (
+                <div>
+                  <h5 className="font-medium text-gray-900 mb-2">Feedback</h5>
+                  <p className="text-gray-600">{selectedApplication.feedback}</p>
+                </div>
+              )}
+
+              {selectedApplication.notes && (
+                <div>
+                  <h5 className="font-medium text-gray-900 mb-2">Notes</h5>
+                  <p className="text-gray-600">{selectedApplication.notes}</p>
+                </div>
+              )}
+
+              <div className="flex justify-end space-x-3 pt-4 border-t">
+                <button
+                  onClick={() => handleEdit(selectedApplication)}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700"
+                >
+                  Edit
+                </button>
+                <button
+                  onClick={() => setShowViewModal(false)}
+                  className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Modal */}
+      {showEditModal && selectedApplication && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-1/2 shadow-lg rounded-md bg-white">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-medium text-gray-900">Update Application Status</h3>
+              <button
+                onClick={() => {
+                  setShowEditModal(false);
+                  setSelectedApplication(null);
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <FontAwesomeIcon icon={faTimes} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Status *</label>
+                <select
+                  name="status"
+                  value={formData.status}
+                  onChange={handleInputChange}
+                  className={`w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    formErrors.status ? 'border-red-500' : 'border-gray-300'
+                  }`}
+                >
+                  <option value="">Select Status</option>
+                  <option value="pending">Pending</option>
+                  <option value="under_review">Under Review</option>
+                  <option value="interview_scheduled">Interview Scheduled</option>
+                  <option value="accepted">Accepted</option>
+                  <option value="placed">Placed</option>
+                  <option value="rejected">Rejected</option>
+                  <option value="withdrawn">Withdrawn</option>
+                </select>
+                {formErrors.status && <p className="text-red-500 text-xs mt-1">{formErrors.status}</p>}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Feedback</label>
+                <textarea
+                  name="feedback"
+                  value={formData.feedback}
+                  onChange={handleInputChange}
+                  rows="3"
+                  placeholder="Provide feedback to the student"
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Interview Date</label>
+                  <input
+                    type="datetime-local"
+                    name="interviewDate"
+                    value={formData.interviewDate}
+                    onChange={handleInputChange}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Interview Location</label>
                   <input
                     type="text"
-                    required
-                    value={formData.studentName}
-                    onChange={(e) => setFormData({ ...formData, studentName: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Email *
-                  </label>
-                  <input
-                    type="email"
-                    required
-                    value={formData.studentEmail}
-                    onChange={(e) => setFormData({ ...formData, studentEmail: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Phone *
-                  </label>
-                  <input
-                    type="tel"
-                    required
-                    value={formData.studentPhone}
-                    onChange={(e) => setFormData({ ...formData, studentPhone: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Department *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.department}
-                    onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Year *
-                  </label>
-                  <select
-                    required
-                    value={formData.year}
-                    onChange={(e) => setFormData({ ...formData, year: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">Select Year</option>
-                    <option value="I">I Year</option>
-                    <option value="II">II Year</option>
-                    <option value="III">III Year</option>
-                    <option value="IV">IV Year</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    CGPA *
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    max="10"
-                    required
-                    value={formData.cgpa}
-                    onChange={(e) => setFormData({ ...formData, cgpa: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Resume *
-                  </label>
-                  <input
-                    type="file"
-                    accept=".pdf,.doc,.docx"
-                    required
-                    onChange={(e) => handleFileUpload(e, 'resume')}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    name="interviewLocation"
+                    value={formData.interviewLocation}
+                    onChange={handleInputChange}
+                    placeholder="Interview venue or platform"
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Cover Letter
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
                 <textarea
-                  rows={4}
-                  value={formData.coverLetter}
-                  onChange={(e) => setFormData({ ...formData, coverLetter: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Write a compelling cover letter explaining why you're interested in this internship..."
+                  name="notes"
+                  value={formData.notes}
+                  onChange={handleInputChange}
+                  rows="3"
+                  placeholder="Additional notes or comments"
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Statement of Purpose
-                </label>
-                <textarea
-                  rows={4}
-                  value={formData.sop}
-                  onChange={(e) => setFormData({ ...formData, sop: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Describe your career goals and how this internship aligns with them..."
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Relevant Experience
-                </label>
-                <textarea
-                  rows={3}
-                  value={formData.experience}
-                  onChange={(e) => setFormData({ ...formData, experience: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Describe any relevant work experience, projects, or internships..."
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Projects
-                </label>
-                <textarea
-                  rows={3}
-                  value={formData.projects}
-                  onChange={(e) => setFormData({ ...formData, projects: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="List any relevant projects you've worked on..."
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Achievements & Awards
-                </label>
-                <textarea
-                  rows={3}
-                  value={formData.achievements}
-                  onChange={(e) => setFormData({ ...formData, achievements: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="List any academic or professional achievements..."
-                />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Portfolio URL
-                  </label>
-                  <input
-                    type="url"
-                    value={formData.portfolio}
-                    onChange={(e) => setFormData({ ...formData, portfolio: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="https://your-portfolio.com"
-                  />
+              {formErrors.submit && (
+                <div className="bg-red-50 border border-red-200 rounded-md p-3">
+                  <p className="text-red-600 text-sm">{formErrors.submit}</p>
                 </div>
+              )}
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Additional Documents
-                  </label>
-                  <input
-                    type="file"
-                    multiple
-                    accept=".pdf,.doc,.docx,.jpg,.png"
-                    onChange={(e) => handleFileUpload(e, 'additionalDocs')}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-              </div>
-
-              <div className="flex justify-end space-x-4">
+              <div className="flex justify-end space-x-3 pt-4">
                 <button
                   type="button"
-                  onClick={() => setShowApplyModal(false)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                  onClick={() => {
+                    setShowEditModal(false);
+                    setSelectedApplication(null);
+                  }}
+                  className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700"
                 >
-                  {formData.id ? 'Update Application' : 'Submit Application'}
+                  Update Application
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {/* View Application Modal */}
-      {showViewModal && selectedApplication && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold">Application Details</h2>
-              <button
-                onClick={() => setShowViewModal(false)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <FontAwesomeIcon icon={faTimesCircle} className="text-xl" />
-              </button>
-            </div>
-
-            <div className="space-y-6">
-              <div>
-                <h3 className="text-2xl font-bold text-gray-900 mb-2">
-                  {selectedApplication.internshipTitle || 'Internship Title'}
-                </h3>
-                <p className="text-lg text-gray-600">
-                  {selectedApplication.companyName || 'Company Name'}
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="flex items-center space-x-2">
-                  <FontAwesomeIcon icon={faUserGraduate} className="text-gray-400" />
-                  <span className="text-sm">{selectedApplication.studentName}</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <FontAwesomeIcon icon={faCalendarAlt} className="text-gray-400" />
-                  <span className="text-sm">Applied: {formatDate(selectedApplication.createdAt)}</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <FontAwesomeIcon icon={faClock} className="text-gray-400" />
-                  <span className="text-sm">Updated: {formatDate(selectedApplication.updatedAt)}</span>
-                </div>
-              </div>
-
-              <div className="flex items-center space-x-4">
-                <span className={`px-3 py-1 text-sm rounded-full ${getStatusColor(selectedApplication.status)}`}>
-                  Status: {selectedApplication.status}
-                </span>
-                <span className={`px-3 py-1 text-sm rounded-full ${getApprovalColor(selectedApplication.facultyApproval)}`}>
-                  Faculty: {selectedApplication.facultyApproval}
-                </span>
-                <span className={`px-3 py-1 text-sm rounded-full ${getApprovalColor(selectedApplication.companyResponse)}`}>
-                  Company: {selectedApplication.companyResponse}
-                </span>
-              </div>
-
-              {selectedApplication.coverLetter && (
-                <div>
-                  <h4 className="font-semibold text-gray-900 mb-2">Cover Letter</h4>
-                  <p className="text-gray-600">{selectedApplication.coverLetter}</p>
-                </div>
-              )}
-
-              {selectedApplication.sop && (
-                <div>
-                  <h4 className="font-semibold text-gray-900 mb-2">Statement of Purpose</h4>
-                  <p className="text-gray-600">{selectedApplication.sop}</p>
-                </div>
-              )}
-
-              {selectedApplication.experience && (
-                <div>
-                  <h4 className="font-semibold text-gray-900 mb-2">Experience</h4>
-                  <p className="text-gray-600">{selectedApplication.experience}</p>
-                </div>
-              )}
-
-              {selectedApplication.projects && (
-                <div>
-                  <h4 className="font-semibold text-gray-900 mb-2">Projects</h4>
-                  <p className="text-gray-600">{selectedApplication.projects}</p>
-                </div>
-              )}
-
-              <div className="flex justify-end space-x-4">
-                <button
-                  onClick={() => setShowViewModal(false)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-                >
-                  Close
-                </button>
-                {userRole === 'student' && (
-                  <button
-                    onClick={() => {
-                      setFormData(selectedApplication);
-                      setShowApplyModal(true);
-                      setShowViewModal(false);
-                    }}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                  >
-                    Edit Application
-                  </button>
-                )}
-              </div>
-            </div>
           </div>
         </div>
       )}
