@@ -6,7 +6,7 @@ import { db } from '../../firebase';
 const EventCreation = ({ onEventCreated, editingEvent, isEditing = false }) => {
   const [formData, setFormData] = useState({
     resourcePersonName: '',
-    coordinators: [],
+    coordinators: '',
     academicYear: '',
     eventType: '',
     totalParticipants: '',
@@ -40,7 +40,8 @@ const EventCreation = ({ onEventCreated, editingEvent, isEditing = false }) => {
     'Hackathon',
     'Cultural Event',
     'Sports Event',
-    'Technical Event'
+    'Technical Event',
+    'Others'
   ];
 
   // Year of students options
@@ -59,7 +60,7 @@ const EventCreation = ({ onEventCreated, editingEvent, isEditing = false }) => {
     if (isEditing && editingEvent) {
       setFormData({
         resourcePersonName: editingEvent.resourcePersonName || '',
-        coordinators: editingEvent.coordinators || [],
+        coordinators: editingEvent.coordinators || '',
         academicYear: editingEvent.academicYear || '',
         eventType: editingEvent.eventType || '',
         totalParticipants: editingEvent.totalParticipants || '',
@@ -92,10 +93,9 @@ const EventCreation = ({ onEventCreated, editingEvent, isEditing = false }) => {
   };
 
   const handleCoordinatorChange = (e) => {
-    const selectedOptions = Array.from(e.target.selectedOptions, option => option.value);
     setFormData(prev => ({
       ...prev,
-      coordinators: selectedOptions
+      coordinators: e.target.value
     }));
   };
 
@@ -104,8 +104,8 @@ const EventCreation = ({ onEventCreated, editingEvent, isEditing = false }) => {
       setError('Resource Person Name is required');
       return false;
     }
-    if (formData.coordinators.length === 0) {
-      setError('At least one coordinator must be selected');
+    if (!formData.coordinators.trim()) {
+      setError('Coordinators is required');
       return false;
     }
     if (!formData.academicYear) {
@@ -157,7 +157,7 @@ const EventCreation = ({ onEventCreated, editingEvent, isEditing = false }) => {
 
       setFormData({
         resourcePersonName: '',
-        coordinators: [],
+        coordinators: '',
         academicYear: '',
         eventType: '',
         totalParticipants: '',
@@ -179,7 +179,7 @@ const EventCreation = ({ onEventCreated, editingEvent, isEditing = false }) => {
   const handleReset = () => {
     setFormData({
       resourcePersonName: '',
-      coordinators: [],
+      coordinators: '',
       academicYear: '',
       eventType: '',
       totalParticipants: '',
@@ -235,22 +235,17 @@ const EventCreation = ({ onEventCreated, editingEvent, isEditing = false }) => {
             <FaUsers className="inline mr-2" />
             Coordinators *
           </label>
-          <select
-            multiple
+          <input
+            type="text"
             name="coordinators"
             value={formData.coordinators}
             onChange={handleCoordinatorChange}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="Enter coordinator names (separate multiple names with commas)"
             required
-          >
-            {facultyList.map(faculty => (
-              <option key={faculty.id} value={faculty.id}>
-                {faculty.name}
-              </option>
-            ))}
-          </select>
+          />
           <p className="text-sm text-gray-500 mt-1">
-            Hold Ctrl (or Cmd on Mac) to select multiple coordinators
+            Enter coordinator names separated by commas (e.g., Dr. John Doe, Prof. Jane Smith)
           </p>
         </div>
 

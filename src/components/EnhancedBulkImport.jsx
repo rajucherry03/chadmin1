@@ -35,6 +35,7 @@ import {
   faGraduationCap,
   faBuilding
 } from '@fortawesome/free-solid-svg-icons';
+import StudentAccessCard from './StudentManagement/StudentAccessCard';
 
 const EnhancedBulkImport = ({ onClose, onSuccess }) => {
   const [file, setFile] = useState(null);
@@ -59,6 +60,8 @@ const EnhancedBulkImport = ({ onClose, onSuccess }) => {
     authCreated: 0,
     authFailed: 0
   });
+  const [showAccessCard, setShowAccessCard] = useState(false);
+  const [selectedStudent, setSelectedStudent] = useState(null);
 
   // Excel column mapping based on your format - only map columns that exist
   const excelMapping = {
@@ -78,12 +81,21 @@ const EnhancedBulkImport = ({ onClose, onSuccess }) => {
 
   // Department options
   const departments = [
-    { value: 'CSE', label: 'Computer Science Engineering', short: 'CSE' },
+    { value: 'CSE', label: 'Computer Science & Engineering', short: 'CSE' },
+    { value: 'CSE_AI', label: 'Computer Science & Engineering (Artificial Intelligence)', short: 'CSE-AI' },
+    { value: 'CSE_CS', label: 'Computer Science & Engineering (Cyber Security)', short: 'CSE-CS' },
+    { value: 'CSE_DS', label: 'Computer Science & Engineering (Data Science)', short: 'CSE-DS' },
+    { value: 'CSE_AI_ML', label: 'Computer Science & Engineering (AI & ML)', short: 'CSE-AI-ML' },
+    { value: 'CSE_NETWORKS', label: 'Computer Science & Engineering (Networks)', short: 'CSE-NET' },
+    { value: 'CST', label: 'Computer Science & Technology', short: 'CST' },
     { value: 'ECE', label: 'Electronics & Communication Engineering', short: 'ECE' },
     { value: 'EEE', label: 'Electrical & Electronics Engineering', short: 'EEE' },
     { value: 'MECH', label: 'Mechanical Engineering', short: 'MECH' },
     { value: 'CIVIL', label: 'Civil Engineering', short: 'CIVIL' },
-    { value: 'IT', label: 'Information Technology', short: 'IT' }
+    { value: 'IT', label: 'Information Technology', short: 'IT' },
+    { value: 'BSH', label: 'Basic Sciences & Humanities', short: 'BSH' },
+    { value: 'MS', label: 'Management Studies', short: 'MS' },
+    { value: 'MCA', label: 'Computer Applications', short: 'MCA' }
   ];
 
   // Year options based on your Excel sheet (III and IV)
@@ -268,13 +280,14 @@ const EnhancedBulkImport = ({ onClose, onSuccess }) => {
   };
 
   const generateEmail = (rollNo) => {
-    return `${rollNo.toLowerCase()}@student.ch360.edu.in`;
+    // Clean roll number and convert to lowercase
+    const cleanRollNo = rollNo.toString().replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+    return `${cleanRollNo}@mits.ac.in`;
   };
 
   const generatePassword = (rollNo) => {
-    // Generate a secure password based on roll number
-    const timestamp = Date.now().toString().slice(-4);
-    return `${rollNo}@${timestamp}`;
+    // Default password for easy access
+    return '123456';
   };
 
   const detectYearsAndSections = (studentData) => {
@@ -369,38 +382,59 @@ const EnhancedBulkImport = ({ onClose, onSuccess }) => {
             console.warn(`Auth creation failed for ${student.rollNo}:`, authResult.error);
           }
 
-                     // Prepare student document data
-           const studentDoc = {
-             // Basic Information
-             rollNo: student.rollNo,
-             studentName: student.studentName,
-             quota: student.quota || '',
-             gender: student.gender || '',
-            
-            // Contact Information
-            studentMobile: student.studentMobile || '',
-            fatherMobile: student.fatherMobile || '',
-            fatherName: student.fatherName || '',
-            motherName: student.motherName || '',
-            permanentAddress: student.permanentAddress || '',
-            
-            // Academic Information
-            department: selectedDepartment,
-            year: selectedYear,
-            section: selectedSection,
-            
-            // Authentication Information
-            authUid: authResult.uid,
-            email: authResult.email,
-            password: authResult.password, // Note: This should be removed in production
-            
-            // Metadata
-            status: 'Active',
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-            importedAt: serverTimestamp(),
-            importSource: 'bulk_import'
-          };
+                                // Prepare student document data
+            const studentDoc = {
+              // Basic Information
+              rollNo: student.rollNo,
+              studentName: student.studentName,
+              quota: student.quota || '',
+              gender: student.gender || '',
+             
+              // Contact Information
+              studentMobile: student.studentMobile || '',
+              fatherMobile: student.fatherMobile || '',
+              fatherName: student.fatherName || '',
+              motherName: student.motherName || '',
+              permanentAddress: student.permanentAddress || '',
+             
+              // Academic Information
+              department: selectedDepartment,
+              year: selectedYear,
+              section: selectedSection,
+             
+              // Authentication Information
+              authUid: authResult.uid,
+              email: authResult.email,
+              password: authResult.password, // Note: This should be removed in production
+             
+              // Easy Access Information
+              loginEmail: authResult.email,
+              loginPassword: authResult.password,
+              studentId: student.rollNo,
+              fullName: student.studentName,
+             
+              // Profile Access
+              profileUrl: `/student/profile/${authResult.uid}`,
+              dashboardUrl: `/student/dashboard/${authResult.uid}`,
+             
+              // Metadata
+              status: 'Active',
+              createdAt: serverTimestamp(),
+              updatedAt: serverTimestamp(),
+              importedAt: serverTimestamp(),
+              importSource: 'bulk_import',
+              
+              // Search and Filter Fields
+              searchableName: student.studentName.toLowerCase(),
+              searchableRollNo: student.rollNo.toLowerCase(),
+              departmentCode: departments.find(d => d.value === selectedDepartment)?.short || 'UNK',
+              yearSection: `${selectedYear}-${selectedSection}`,
+              
+              // Quick Access Fields
+              displayName: student.studentName,
+              shortName: student.studentName.split(' ').slice(0, 2).join(' '),
+              initials: student.studentName.split(' ').map(n => n[0]).join('').toUpperCase()
+            };
 
           // Create document path
           const deptShort = departments.find(d => d.value === selectedDepartment)?.short || 'UNK';
@@ -415,21 +449,27 @@ const EnhancedBulkImport = ({ onClose, onSuccess }) => {
           const studentRef = doc(db, `students/${sanitizedDept}/${groupKey}`, documentId);
           currentBatch.set(studentRef, studentDoc);
 
-          // Create reference in studentsByUid collection for easy lookup
-          if (authResult.uid) {
-            const byUidRef = doc(db, 'studentsByUid', authResult.uid);
-            currentBatch.set(byUidRef, {
-              authUid: authResult.uid,
-              authEmail: authResult.email,
-              department: selectedDepartment,
-              year: selectedYear,
-              section: selectedSection,
-              rollNo: student.rollNo,
-              studentName: student.studentName,
-              primaryDocPath: `students/${sanitizedDept}/${groupKey}/${documentId}`,
-              updatedAt: serverTimestamp()
-            }, { merge: true });
-          }
+                     // Create reference in studentsByUid collection for easy lookup
+           if (authResult.uid) {
+             const byUidRef = doc(db, 'studentsByUid', authResult.uid);
+             currentBatch.set(byUidRef, {
+               authUid: authResult.uid,
+               authEmail: authResult.email,
+               loginEmail: authResult.email,
+               loginPassword: authResult.password,
+               department: selectedDepartment,
+               year: selectedYear,
+               section: selectedSection,
+               rollNo: student.rollNo,
+               studentName: student.studentName,
+               fullName: student.studentName,
+               primaryDocPath: `students/${sanitizedDept}/${groupKey}/${documentId}`,
+               profileUrl: `/student/profile/${authResult.uid}`,
+               dashboardUrl: `/student/dashboard/${authResult.uid}`,
+               status: 'Active',
+               updatedAt: serverTimestamp()
+             }, { merge: true });
+           }
 
           stats.success++;
           batchCount++;
@@ -865,15 +905,16 @@ const EnhancedBulkImport = ({ onClose, onSuccess }) => {
                 <FontAwesomeIcon icon={faExclamationTriangle} className="text-yellow-400 mt-1" />
                 <div className="ml-3">
                   <h3 className="text-sm font-medium text-yellow-800">Important Notes</h3>
-                  <div className="mt-2 text-sm text-yellow-700">
-                    <ul className="list-disc pl-5 space-y-1">
-                      <li>This will create Firebase Authentication accounts for all students</li>
-                      <li>Student emails will be generated as: rollno@student.ch360.edu.in</li>
-                      <li>Initial passwords will be generated automatically</li>
-                      <li>Students can reset their passwords using their email</li>
-                      <li>This action cannot be undone</li>
-                    </ul>
-                  </div>
+                                     <div className="mt-2 text-sm text-yellow-700">
+                     <ul className="list-disc pl-5 space-y-1">
+                       <li>This will create Firebase Authentication accounts for all students</li>
+                       <li>Student emails will be generated as: rollno@mits.ac.in</li>
+                       <li>Default password for all students: 123456</li>
+                       <li>Students can easily access their profile using roll number</li>
+                       <li>Students can reset their passwords using their email</li>
+                       <li>This action cannot be undone</li>
+                     </ul>
+                   </div>
                 </div>
               </div>
             </div>
@@ -947,26 +988,49 @@ const EnhancedBulkImport = ({ onClose, onSuccess }) => {
                 <FontAwesomeIcon icon={faEnvelope} className="text-blue-400 mt-1" />
                 <div className="ml-3">
                   <h3 className="text-sm font-medium text-blue-800">Next Steps</h3>
-                  <div className="mt-2 text-sm text-blue-700">
-                    <ul className="list-disc pl-5 space-y-1">
-                      <li>Students can now log in using their email and generated password</li>
-                      <li>Email format: rollno@student.ch360.edu.in</li>
-                      <li>Students should change their password on first login</li>
-                      <li>You can send password reset emails if needed</li>
-                    </ul>
-                  </div>
+                                     <div className="mt-2 text-sm text-blue-700">
+                     <ul className="list-disc pl-5 space-y-1">
+                       <li>Students can now log in using their email and default password</li>
+                       <li>Email format: rollno@mits.ac.in</li>
+                       <li>Default password: 123456</li>
+                       <li>Students can access their profile easily using roll number</li>
+                       <li>Students should change their password on first login</li>
+                       <li>You can send password reset emails if needed</li>
+                     </ul>
+                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="flex justify-center">
-              <button
-                onClick={onClose}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700"
-              >
-                Close
-              </button>
-            </div>
+                         <div className="flex justify-center space-x-3">
+               <button
+                 onClick={() => {
+                   // Show first student's access card as example
+                   const firstStudent = data[0];
+                   if (firstStudent) {
+                     setSelectedStudent({
+                       ...firstStudent,
+                       email: generateEmail(firstStudent.rollNo),
+                       password: generatePassword(firstStudent.rollNo),
+                       authUid: `example-${firstStudent.rollNo}`,
+                       department: selectedDepartment,
+                       year: selectedYear,
+                       section: selectedSection
+                     });
+                     setShowAccessCard(true);
+                   }
+                 }}
+                 className="px-4 py-2 bg-green-600 text-white rounded-md text-sm font-medium hover:bg-green-700"
+               >
+                 View Student Access Card
+               </button>
+               <button
+                 onClick={onClose}
+                 className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700"
+               >
+                 Close
+               </button>
+             </div>
           </div>
         );
 
@@ -976,29 +1040,42 @@ const EnhancedBulkImport = ({ onClose, onSuccess }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-      <div className="relative top-20 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-1/2 shadow-lg rounded-md bg-white">
-        <div className="mt-3">
-          {/* Progress Bar */}
-          {isUploading && (
-            <div className="mb-6">
-              <div className="flex justify-between text-sm text-gray-600 mb-2">
-                <span>Import Progress</span>
-                <span>{Math.round(uploadProgress)}%</span>
+    <>
+      <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+        <div className="relative top-20 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-1/2 shadow-lg rounded-md bg-white">
+          <div className="mt-3">
+            {/* Progress Bar */}
+            {isUploading && (
+              <div className="mb-6">
+                <div className="flex justify-between text-sm text-gray-600 mb-2">
+                  <span>Import Progress</span>
+                  <span>{Math.round(uploadProgress)}%</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div 
+                    className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${uploadProgress}%` }}
+                  ></div>
+                </div>
               </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div 
-                  className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                  style={{ width: `${uploadProgress}%` }}
-                ></div>
-              </div>
-            </div>
-          )}
+            )}
 
-          {renderStep()}
+            {renderStep()}
+          </div>
         </div>
       </div>
-    </div>
+
+      {/* Student Access Card Modal */}
+      {showAccessCard && selectedStudent && (
+        <StudentAccessCard
+          student={selectedStudent}
+          onClose={() => {
+            setShowAccessCard(false);
+            setSelectedStudent(null);
+          }}
+        />
+      )}
+    </>
   );
 };
 
