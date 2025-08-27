@@ -62,6 +62,7 @@ const InternshipPlacementManagement = () => {
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [searchTerm, setSearchTerm] = useState(() => localStorage.getItem('ipm.searchTerm') || '');
   const [debouncedSearch, setDebouncedSearch] = useState(() => localStorage.getItem('ipm.searchTerm') || '');
+  const [expandedSection, setExpandedSection] = useState(() => localStorage.getItem('ipm.expandedSection') || 'dashboard');
 
   // Data states
   const [internships, setInternships] = useState([]);
@@ -86,7 +87,8 @@ const InternshipPlacementManagement = () => {
     localStorage.setItem('ipm.activeTab', activeTab);
     localStorage.setItem('ipm.userRole', userRole);
     localStorage.setItem('ipm.searchTerm', searchTerm);
-  }, [activeTab, userRole, searchTerm]);
+    localStorage.setItem('ipm.expandedSection', expandedSection);
+  }, [activeTab, userRole, searchTerm, expandedSection]);
 
   // Debounce search
   useEffect(() => {
@@ -435,169 +437,83 @@ const InternshipPlacementManagement = () => {
                 <FontAwesomeIcon icon={faRefresh} className="text-xs" />
                 Refresh
               </button>
-
-              {/* Notifications */}
-              <button className="relative h-9 w-9 inline-flex items-center justify-center rounded-full bg-white/70 border border-blue-100 text-gray-600 hover:text-gray-800">
-                <FontAwesomeIcon icon={faBell} className="text-base" />
-                {notifications.filter(n => !n.read).length > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] rounded-full h-5 w-5 flex items-center justify-center">
-                    {notifications.filter(n => !n.read).length}
-                  </span>
-                )}
-              </button>
-
-              {/* Role Selector */}
-              <select
-                value={userRole}
-                onChange={(e) => setUserRole(e.target.value)}
-                className="px-3 py-2 rounded-full bg-white/70 border border-blue-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="admin">Admin</option>
-                <option value="faculty">Faculty</option>
-                <option value="student">Student</option>
-                <option value="company">Company</option>
-              </select>
             </div>
           </div>
         </div>
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div className="flex space-x-6">
-          {/* Sidebar Navigation */}
-          <div className={`${showMobileMenu ? 'block' : 'hidden'} md:block w-64 flex-shrink-0`}>
-            <nav className="space-y-2">
-              {tabs.map((tab) => {
-                if (!tab.roles.includes(userRole)) return null;
-                
-                return (
-                  <div key={tab.id}>
-                    <button
-                      onClick={() => setActiveTab(tab.id)}
-                      className={`w-full flex items-center justify-between px-3 py-3 text-left rounded-md transition-colors ${
-                        activeTab === tab.id
-                          ? 'bg-white shadow-sm border border-blue-200 text-blue-700'
-                          : 'text-gray-700 hover:bg-white hover:shadow-sm border border-transparent'
-                      }`}
-                    >
-                      <div className="flex items-center space-x-3">
-                        <FontAwesomeIcon icon={tab.icon} className="w-5 h-5" />
-                        <div>
-                          <span className="font-medium">{tab.label}</span>
-                          <p className="text-xs text-gray-500">{tab.description}</p>
-                        </div>
-                      </div>
-                      {tab.subTabs && (
-                        <FontAwesomeIcon 
-                          icon={activeTab === tab.id ? faChevronUp : faChevronDown} 
-                          className="w-4 h-4" 
-                        />
-                      )}
-                    </button>
-                    
-                    {/* Sub-tabs */}
-                    {tab.subTabs && activeTab === tab.id && (
-                      <div className="ml-4 mt-2 space-y-1">
-                        {tab.subTabs.map((subTab) => {
-                          // Show all sub-tabs unless a roles array is explicitly provided
-                          if (Array.isArray(subTab.roles) && !subTab.roles.includes(userRole)) return null;
-                          
-                          return (
-                            <button
-                              key={subTab.id}
-                              onClick={() => setActiveTab(`${tab.id}-${subTab.id}`)}
-                              className={`w-full flex items-center space-x-3 px-3 py-2 text-left rounded-md transition-colors text-sm ${
-                                activeTab === `${tab.id}-${subTab.id}`
-                                  ? 'bg-blue-50 text-blue-700'
-                                  : 'text-gray-600 hover:bg-white hover:shadow-sm'
-                              }`}
-                            >
-                              <FontAwesomeIcon icon={subTab.icon} className="w-4 h-4" />
-                              <div>
-                                <span>{subTab.label}</span>
-                                <p className="text-xs text-gray-400">{subTab.description}</p>
-                              </div>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </nav>
+        {/* Top navigation (replaces sidebar) */}
+        <div className="mb-4">
+          <div className="flex flex-wrap gap-2 md:gap-3">
+            {tabs.filter(t => t.roles.includes(userRole)).map((tab) => {
+              const isActiveRoot = activeTab.startsWith(tab.id);
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`inline-flex items-center gap-2 px-3 md:px-4 py-2 rounded-full border text-sm ${
+                    isActiveRoot ? 'bg-white border-blue-300 text-blue-700 shadow-sm' : 'bg-white border-gray-200 text-gray-700 hover:border-blue-300'
+                  }`}
+                  title={tab.description}
+                >
+                  <FontAwesomeIcon icon={tab.icon} className="w-4 h-4" />
+                  <span className="font-medium">{tab.label}</span>
+                </button>
+              );
+            })}
           </div>
-
-          {/* Main Content */}
-          <div className="flex-1">
-            {/* Breadcrumbs and quick sub-nav */}
-            <div className="mb-3">
-              <nav className="text-sm text-gray-500">
-                <ol className="flex items-center space-x-2">
-                  <li>
-                    <button onClick={() => setActiveTab('dashboard')} className="hover:text-gray-700">Dashboard</button>
-                  </li>
-                  <li className="text-gray-300">/</li>
-                  <li className="text-gray-700 font-medium capitalize">{getLabelFor(activeTab.split('-')[0])}</li>
-                  {isInSubSection() && (
-                    <>
-                      <li className="text-gray-300">/</li>
-                      <li className="text-gray-700 capitalize">{getLabelFor(activeTab)}</li>
-                    </>
-                  )}
-                </ol>
-              </nav>
-              {getSubTabsForActive().length > 0 && (
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {getSubTabsForActive().map((s) => (
-                    <button
-                      key={s.id}
-                      onClick={() => setActiveTab(`${activeTab.split('-')[0]}-${s.id}`)}
-                      className={`px-3 py-1.5 rounded-full text-sm border ${
-                        activeTab === `${activeTab.split('-')[0]}-${s.id}`
-                          ? 'bg-blue-600 text-white border-blue-600'
-                          : 'bg-white text-gray-700 border-gray-200 hover:border-blue-300'
-                      }`}
-                      title={s.description}
-                    >
-                      {s.label}
-                    </button>
-                  ))}
-                </div>
-              )}
+          {/* Sub-tabs for the active section */}
+          {getSubTabsForActive().length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {getSubTabsForActive().map((s) => (
+                <button
+                  key={s.id}
+                  onClick={() => setActiveTab(`${activeTab.split('-')[0]}-${s.id}`)}
+                  className={`px-3 py-1.5 rounded-full text-sm border ${
+                    activeTab === `${activeTab.split('-')[0]}-${s.id}`
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-white text-gray-700 border-gray-200 hover:border-blue-300'
+                  }`}
+                  title={s.description}
+                >
+                  {s.label}
+                </button>
+              ))}
             </div>
+          )}
+        </div>
 
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-2 md:p-4">
-              {error && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
-                  <div className="flex items-center space-x-2">
-                    <FontAwesomeIcon icon={faExclamationTriangle} className="text-red-500" />
-                    <span className="text-red-700">{error}</span>
-                  </div>
-                </div>
-              )}
-              {/* Helpful empty-state guidance */}
-              {activeTab === 'internships-listings' && internships.length === 0 && (
-                <div className="mb-4 rounded-lg border border-blue-100 bg-blue-50 p-4 text-blue-800">
-                  <div className="font-medium mb-1">No internships yet</div>
-                  <p className="text-sm">Use the Add Internship button to create your first listing. You can link a company, set deadline and required skills.</p>
-                </div>
-              )}
-              {activeTab === 'internships-applications' && applications.length === 0 && (
-                <div className="mb-4 rounded-lg border border-amber-100 bg-amber-50 p-4 text-amber-800">
-                  <div className="font-medium mb-1">No applications found</div>
-                  <p className="text-sm">Once students apply to internships, they will appear here for review and status updates.</p>
-                </div>
-              )}
-              {activeTab === 'placements-company-registration' && companies.length === 0 && (
-                <div className="mb-4 rounded-lg border border-emerald-100 bg-emerald-50 p-4 text-emerald-800">
-                  <div className="font-medium mb-1">No companies registered</div>
-                  <p className="text-sm">Add a company to start posting internships and jobs. Include a contact person and basic details.</p>
-                </div>
-              )}
-              {renderComponent()}
+        {/* Main Content */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-2 md:p-4">
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+              <div className="flex items-center space-x-2">
+                <FontAwesomeIcon icon={faExclamationTriangle} className="text-red-500" />
+                <span className="text-red-700">{error}</span>
+              </div>
             </div>
-          </div>
+          )}
+          {/* Helpful empty-state guidance */}
+          {activeTab === 'internships-listings' && internships.length === 0 && (
+            <div className="mb-4 rounded-lg border border-blue-100 bg-blue-50 p-4 text-blue-800">
+              <div className="font-medium mb-1">No internships yet</div>
+              <p className="text-sm">Use the Add Internship button to create your first listing. You can link a company, set deadline and required skills.</p>
+            </div>
+          )}
+          {activeTab === 'internships-applications' && applications.length === 0 && (
+            <div className="mb-4 rounded-lg border border-amber-100 bg-amber-50 p-4 text-amber-800">
+              <div className="font-medium mb-1">No applications found</div>
+              <p className="text-sm">Once students apply to internships, they will appear here for review and status updates.</p>
+            </div>
+          )}
+          {activeTab === 'placements-company-registration' && companies.length === 0 && (
+            <div className="mb-4 rounded-lg border border-emerald-100 bg-emerald-50 p-4 text-emerald-800">
+              <div className="font-medium mb-1">No companies registered</div>
+              <p className="text-sm">Add a company to start posting internships and jobs. Include a contact person and basic details.</p>
+            </div>
+          )}
+          {renderComponent()}
         </div>
       </div>
     </div>

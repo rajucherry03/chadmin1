@@ -32,6 +32,7 @@ import {
   FaChevronRight,
   FaChartLine,
   FaBriefcase,
+  FaFlask,
 } from "react-icons/fa";
 
 const AdminNavbar = () => {
@@ -187,6 +188,12 @@ const AdminNavbar = () => {
       title: "Internship & Placement",
       icon: FaBriefcase,
       to: "/internship-placement",
+      links: [],
+    },
+    {
+      title: "Research & Development",
+      icon: FaFlask,
+      to: "/research-development",
       links: [],
     },
   ]), []);

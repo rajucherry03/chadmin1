@@ -142,18 +142,9 @@ const InternshipListings = ({
   };
 
   const validateForm = () => {
-    const errors = {};
-    
-    if (!formData.title.trim()) errors.title = 'Title is required';
-    if (!formData.companyName.trim()) errors.companyName = 'Company name is required';
-    if (!formData.description.trim()) errors.description = 'Description is required';
-    if (!formData.location.trim()) errors.location = 'Location is required';
-    if (!formData.duration.trim()) errors.duration = 'Duration is required';
-    if (!formData.deadline) errors.deadline = 'Deadline is required';
-    if (!formData.positions) errors.positions = 'Number of positions is required';
-    
-    setFormErrors(errors);
-    return Object.keys(errors).length === 0;
+    // All fields optional
+    setFormErrors({});
+    return true;
   };
 
   const handleSubmit = async (e) => {
@@ -480,7 +471,7 @@ const InternshipListings = ({
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Title *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
                   <input
                     type="text"
                     name="title"
@@ -494,7 +485,7 @@ const InternshipListings = ({
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Company *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Company</label>
                   <select
                     name="companyId"
                     value={formData.companyId}
@@ -519,7 +510,7 @@ const InternshipListings = ({
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Location *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
                   <input
                     type="text"
                     name="location"
@@ -533,7 +524,7 @@ const InternshipListings = ({
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Duration *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Duration</label>
                   <input
                     type="text"
                     name="duration"
@@ -548,7 +539,7 @@ const InternshipListings = ({
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Deadline *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Deadline</label>
                   <input
                     type="date"
                     name="deadline"
@@ -562,7 +553,7 @@ const InternshipListings = ({
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Positions *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Positions</label>
                   <input
                     type="number"
                     name="positions"
@@ -578,7 +569,7 @@ const InternshipListings = ({
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Description *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
                 <textarea
                   name="description"
                   value={formData.description}

@@ -396,6 +396,17 @@ const WeeklyTimetable = () => {
     return colors[periodIndex % colors.length];
   };
 
+  // Ensure we correctly match period labels like 1st/2nd/3rd/4th... or just numbers
+  const matchesPeriodIndex = (periodLabel, periodIndex) => {
+    const expected = periodIndex + 1;
+    if (periodLabel == null) return false;
+    const numeric = parseInt(String(periodLabel).replace(/\D/g, ''), 10);
+    if (!Number.isNaN(numeric)) return numeric === expected;
+    const suffix = expected === 1 ? 'st' : expected === 2 ? 'nd' : expected === 3 ? 'rd' : 'th';
+    const lower = String(periodLabel).toLowerCase();
+    return lower === `${expected}${suffix}` || lower === `${expected}`;
+  };
+
   const createTimetableEntry = async (e) => {
     e.preventDefault();
     if (!department || !year || !section) {
@@ -695,9 +706,7 @@ const WeeklyTimetable = () => {
                         <div className="font-bold text-gray-800">{day}</div>
                       </td>
                       {[...Array(7)].map((_, periodIndex) => {
-                        const entry = entries.find((e) =>
-                          e.periods.some((p) => p === `${periodIndex + 1}st` || p === `${periodIndex + 1}nd` || p === `${periodIndex + 1}rd`)
-                        );
+                        const entry = entries.find((e) => e.periods.some((p) => matchesPeriodIndex(p, periodIndex)));
                         return (
                           <td key={periodIndex} className="px-4 py-4 border-b border-gray-200">
                             {entry ? (

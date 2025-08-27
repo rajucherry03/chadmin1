@@ -126,15 +126,9 @@ const CompanyRegistration = ({
   };
 
   const validateForm = () => {
-    const errors = {};
-    
-    if (!formData.name.trim()) errors.name = 'Company name is required';
-    if (!formData.industry.trim()) errors.industry = 'Industry is required';
-    if (!formData.contactPerson.trim()) errors.contactPerson = 'Contact person is required';
-    if (!formData.contactEmail.trim()) errors.contactEmail = 'Contact email is required';
-    
-    setFormErrors(errors);
-    return Object.keys(errors).length === 0;
+    // Make all fields optional
+    setFormErrors({});
+    return true;
   };
 
   const handleSubmit = async (e) => {
@@ -453,7 +447,7 @@ const CompanyRegistration = ({
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Company Name *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Company Name</label>
                   <input
                     type="text"
                     name="name"
@@ -467,7 +461,7 @@ const CompanyRegistration = ({
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Industry *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Industry</label>
                   <select
                     name="industry"
                     value={formData.industry}
@@ -541,7 +535,7 @@ const CompanyRegistration = ({
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Contact Person *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Contact Person</label>
                   <input
                     type="text"
                     name="contactPerson"
@@ -555,7 +549,7 @@ const CompanyRegistration = ({
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Contact Email *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Contact Email</label>
                   <input
                     type="email"
                     name="contactEmail"

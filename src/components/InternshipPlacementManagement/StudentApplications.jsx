@@ -97,12 +97,9 @@ const StudentApplications = ({
   };
 
   const validateForm = () => {
-    const errors = {};
-    
-    if (!formData.status) errors.status = 'Status is required';
-    
-    setFormErrors(errors);
-    return Object.keys(errors).length === 0;
+    // All fields optional
+    setFormErrors({});
+    return true;
   };
 
   const handleSubmit = async (e) => {
@@ -563,7 +560,7 @@ const StudentApplications = ({
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Status *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
                 <select
                   name="status"
                   value={formData.status}

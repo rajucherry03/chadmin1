@@ -51,6 +51,7 @@ const ApprovalWorkflow = lazy(() => import("./components/SyllabusManagement/Appr
 const GradesManagement = lazy(() => import("./components/GradesManagement/GradesManagement.jsx"));
 const EventManagement = lazy(() => import("./components/EventManagement/EventManagement.jsx"));
 const InternshipPlacementManagement = lazy(() => import("./components/InternshipPlacementManagement/InternshipPlacementManagement.jsx"));
+const ResearchDevelopment = lazy(() => import("./components/RnD/ResearchDevelopment.jsx"));
 
 // Private Route Wrapper
 const PrivateRoute = ({ children }) => {
@@ -136,6 +137,7 @@ function App() {
                             <Route path="/grades-management" element={<GradesManagement />} />
                             <Route path="/event-management" element={<EventManagement />} />
                             <Route path="/internship-placement" element={<InternshipPlacementManagement />} />
+                            <Route path="/research-development/*" element={<ResearchDevelopment />} />
                           </Routes>
                         </div>
                       </div>
