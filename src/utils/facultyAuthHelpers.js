@@ -13,6 +13,7 @@ import {
   updateDoc, 
   serverTimestamp,
   collection,
+  collectionGroup,
   query,
   where,
   getDocs
@@ -109,24 +110,26 @@ export const generateFacultyPassword = (empID, name) => {
  * @returns {Object} Result object with success status and user info
  */
 export const createFacultyAuthAccount = async (facultyData) => {
+  const providedEmail = (facultyData.emailID || '').trim();
+  const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(providedEmail);
+  const emailToUse = isValidEmail ? providedEmail : generateFacultyEmail(facultyData.name, facultyData.empID);
   try {
-    const email = facultyData.emailID || generateFacultyEmail(facultyData.name, facultyData.empID);
     const password = generateFacultyPassword(facultyData.empID, facultyData.name);
     
     // Check if user already exists
-    const signInMethods = await fetchSignInMethodsForEmail(workerAuth, email);
+    const signInMethods = await fetchSignInMethodsForEmail(workerAuth, emailToUse);
     if (signInMethods.length > 0) {
       return { 
         success: false, 
         error: 'User already exists', 
         uid: null,
-        email,
+        email: emailToUse,
         password 
       };
     }
     
     // Create user with worker auth to avoid session switching
-    const userCredential = await createUserWithEmailAndPassword(workerAuth, email, password);
+    const userCredential = await createUserWithEmailAndPassword(workerAuth, emailToUse, password);
     
     // Update user profile with display name
     await updateProfile(userCredential.user, {
@@ -137,7 +140,7 @@ export const createFacultyAuthAccount = async (facultyData) => {
     return { 
       success: true, 
       uid: userCredential.user.uid, 
-      email, 
+      email: emailToUse, 
       password,
       displayName: facultyData.name
     };
@@ -147,7 +150,7 @@ export const createFacultyAuthAccount = async (facultyData) => {
       success: false, 
       error: error.message, 
       uid: null,
-      email: null,
+      email: isValidEmail ? providedEmail : null,
       password: null
     };
   }
@@ -178,30 +181,33 @@ export const sendWelcomeEmail = async (email, name) => {
  */
 export const getFacultyProfile = async (uid, department = null) => {
   try {
-    let facultyDoc;
-    
-    if (department) {
-      // If department is provided, use the department path
-      facultyDoc = await getDoc(doc(db, 'faculty', department, uid));
-    } else {
-      // If department is not provided, search across all departments
-      const facultyRef = collection(db, 'faculty');
-      const q = query(facultyRef, where('authUid', '==', uid));
-      const querySnapshot = await getDocs(q);
-      
-      if (!querySnapshot.empty) {
-        const doc = querySnapshot.docs[0];
-        return { success: true, data: { ...doc.data(), uid: doc.id } };
-      } else {
-        return { success: false, error: 'Faculty not found' };
+    const facultyRefCandidates = [
+      doc(db, 'faculty', 'CSE', 'members', uid),
+      doc(db, 'faculty', 'ECE', 'members', uid),
+      doc(db, 'faculty', 'EEE', 'members', uid),
+      doc(db, 'faculty', 'ME', 'members', uid),
+      doc(db, 'faculty', 'CE', 'members', uid)
+    ];
+    // Try known departments first; if none found, fall back to query by authUid
+    for (let i = 0; i < facultyRefCandidates.length; i++) {
+      const snap = await getDoc(facultyRefCandidates[i]);
+      if (snap.exists()) {
+        return { success: true, data: { uid, ...snap.data() } };
       }
     }
-    
-    if (facultyDoc.exists()) {
-      return { success: true, data: facultyDoc.data() };
-    } else {
-      return { success: false, error: 'Faculty not found' };
+    const facultyRef = collection(db, 'faculty');
+    const q = query(collectionGroup ? collectionGroup(db, 'members') : facultyRef, where('authUid', '==', uid));
+    const querySnapshot = await getDocs(q);
+    if (!querySnapshot.empty) {
+      const docSnap = querySnapshot.docs[0];
+      return { success: true, data: { uid: docSnap.id, ...docSnap.data() } };
     }
+    return { success: false, error: 'Faculty not found' };
+    const facultyDoc = await getDoc(facultyRef);
+    if (facultyDoc.exists()) {
+      return { success: true, data: { uid, ...facultyDoc.data() } };
+    }
+    return { success: false, error: 'Faculty not found' };
   } catch (error) {
     console.error('Error fetching faculty profile:', error);
     return { success: false, error: error.message };
@@ -215,20 +221,13 @@ export const getFacultyProfile = async (uid, department = null) => {
  */
 export const getFacultyByEmail = async (email) => {
   try {
-    // Search across all departments for the faculty with matching email
-    const facultyRef = collection(db, 'faculty');
-    const q = query(facultyRef, where('emailID', '==', email));
+    const q = query(collectionGroup(db, 'members'), where('emailID', '==', email));
     const querySnapshot = await getDocs(q);
-    
     if (!querySnapshot.empty) {
       const facultyDoc = querySnapshot.docs[0];
-      return { 
-        success: true, 
-        data: { ...facultyDoc.data(), uid: facultyDoc.id } 
-      };
-    } else {
-      return { success: false, error: 'Faculty not found' };
+      return { success: true, data: { uid: facultyDoc.id, ...facultyDoc.data() } };
     }
+    return { success: false, error: 'Faculty not found' };
   } catch (error) {
     console.error('Error fetching faculty by email:', error);
     return { success: false, error: error.message };
@@ -244,7 +243,7 @@ export const getFacultyByEmail = async (email) => {
  */
 export const updateFacultyProfile = async (uid, department, updates) => {
   try {
-    const facultyRef = doc(db, 'faculty', department, uid);
+    const facultyRef = doc(db, 'faculty', uid);
     await updateDoc(facultyRef, {
       ...updates,
       updatedAt: serverTimestamp(),
@@ -301,8 +300,8 @@ export const facultyLogin = async (email, password) => {
     
     const facultyData = facultyResult.data;
     
-    // Update last login using department path
-    await updateDoc(doc(db, 'faculty', facultyData.department, facultyData.uid), {
+    // Update last login on flat collection
+    await updateDoc(doc(db, 'faculty', facultyData.uid), {
       lastLogin: serverTimestamp()
     });
     
@@ -404,13 +403,10 @@ export const createFacultyProfile = (facultyData, authUid, authEmail) => {
  */
 export const getFacultyByDepartment = async (department) => {
   try {
-    const facultyRef = collection(db, 'faculty', department);
-    const querySnapshot = await getDocs(facultyRef);
-    
-    const facultyList = querySnapshot.docs.map(doc => ({
-      ...doc.data(),
-      uid: doc.id
-    }));
+    const facultyRef = collection(db, 'faculty');
+    const q = query(facultyRef, where('departmentKey', '==', department));
+    const querySnapshot = await getDocs(q);
+    const facultyList = querySnapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() }));
     
     return { success: true, data: facultyList };
   } catch (error) {
@@ -426,8 +422,9 @@ export const getFacultyByDepartment = async (department) => {
  */
 export const getFacultyCountByDepartment = async (department) => {
   try {
-    const facultyRef = collection(db, 'faculty', department);
-    const querySnapshot = await getDocs(facultyRef);
+    const facultyRef = collection(db, 'faculty');
+    const q = query(facultyRef, where('departmentKey', '==', department));
+    const querySnapshot = await getDocs(q);
     
     return { success: true, count: querySnapshot.size };
   } catch (error) {

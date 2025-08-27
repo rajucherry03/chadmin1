@@ -172,9 +172,9 @@ const AddFaculty = () => {
         authResult.email
       );
 
-      // Store in Firestore with department path: /faculty/{department}/{uid}
-      const documentId = authResult.uid || facultyData.empID;
-      const facultyDocRef = doc(db, "faculty", deptKey, documentId);
+      // Store in Firestore with hierarchical collection: /faculty/{departmentKey}/members/{uid}
+      const documentId = (authResult.uid && String(authResult.uid).trim()) || (facultyData.empID && String(facultyData.empID).trim()) || `faculty_${Date.now()}`;
+      const facultyDocRef = doc(db, "faculty", deptKey, "members", documentId);
       
       await setDoc(facultyDocRef, enhancedFacultyData);
 
@@ -375,8 +375,8 @@ const AddFaculty = () => {
           );
 
           // Use UID as document ID if auth was created, otherwise use empID
-          const documentId = authResult.uid || faculty.empID || `faculty_${Date.now()}_${i}`;
-          const facultyDocRef = doc(db, "faculty", deptKey, documentId);
+          const documentId = (authResult.uid && String(authResult.uid).trim()) || (faculty.empID && String(faculty.empID).trim()) || `faculty_${Date.now()}_${i}`;
+          const facultyDocRef = doc(db, "faculty", deptKey, "members", documentId);
           
           batch.set(facultyDocRef, enhancedFacultyData);
           batchCount++;

@@ -7,13 +7,13 @@ import { getStorage } from "firebase/storage";
 import { handleFirebaseAnalyticsError } from "./utils/errorHandler.js";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyA0U_p8Zi4OQ14JwC5xvU7C0m3IxJ1bCZ8",
-  authDomain: "ch360-ds-erp.firebaseapp.com",
-  projectId: "ch360-ds-erp",
-  storageBucket: "ch360-ds-erp.firebasestorage.app",
-  messagingSenderId: "534259169903",
-  appId: "1:534259169903:web:6f8cb4ebb2e2128ac12b9a",
-  measurementId: "G-2FWQFRNZJ2"
+  apiKey: "AIzaSyDMq44NwFG_TPNlLrDl1jJiSvOUNGyyOB8",
+  authDomain: "ch360-ds-erp-ab6dc.firebaseapp.com",
+  projectId: "ch360-ds-erp-ab6dc",
+  storageBucket: "ch360-ds-erp-ab6dc.firebasestorage.app",
+  messagingSenderId: "295094389979",
+  appId: "1:295094389979:web:38c38f72ddc4170d2090fe",
+  measurementId: "G-0TTF6S70RJ"
 };
 
 const app = initializeApp(firebaseConfig);
@@ -27,11 +27,11 @@ try {
   // Analytics will fall back to local config
 }
 
-// Initialize Firestore with improved offline configuration
+// Initialize Firestore tuned for enterprise networks/proxies and strict data handling
 export const db = initializeFirestore(app, {
-  cacheSizeBytes: 100 * 1024 * 1024, // Increased to 100MB for better offline support
-  experimentalForceLongPolling: true, // Better for some network conditions
-  useFetchStreams: false, // Disable fetch streams for better compatibility
+  cacheSizeBytes: 100 * 1024 * 1024, // 100MB cache for better resilience
+  ignoreUndefinedProperties: true, // Drop undefined fields to avoid 400 Write errors
+  experimentalAutoDetectLongPolling: true, // Auto-detect fallback for restricted networks
 });
 
 // Network connectivity management
