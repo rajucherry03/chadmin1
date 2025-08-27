@@ -1,45 +1,25 @@
 import React, { useState, useEffect } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import {
-  faUserCheck, faSave, faDownload, faUndo, faCheckCircle,
-  faExclamationTriangle, faEye, faEdit, faTrash, faPlus,
-  faCog, faHistory, faQrcode, faPrint, faShare, faLock,
-  faUserPlus, faCopy, faRefresh, faUnlock, faUserShield,
-  faTimes, faSpinner, faDesktop, faMobile, faTablet
-} from "@fortawesome/free-solid-svg-icons";
+import { faUserCheck, faSave, faUndo, faUserPlus, faTimes, faSpinner, faSearch } from "@fortawesome/free-solid-svg-icons";
 import { db } from "../../firebase";
-import { doc, updateDoc, writeBatch, addDoc, collection, serverTimestamp } from "firebase/firestore";
+import { doc, updateDoc, writeBatch, addDoc, collection, serverTimestamp, onSnapshot } from "firebase/firestore";
 
-const StudentPortal = ({ students }) => {
+const StudentPortal = ({ students = [], filters }) => {
+  // Live fetch when Department/Year/Section are provided to ensure data shows from nested path
+  const [classStudents, setClassStudents] = useState(students);
+  const [loading, setLoading] = useState(false);
+  const [dept, setDept] = useState(filters?.department || "");
+  const [year, setYear] = useState(filters?.year || "");
+  const [section, setSection] = useState(filters?.section || "");
+  const [departmentOptions, setDepartmentOptions] = useState([]);
   const [selectedStudents, setSelectedStudents] = useState([]);
-  const [portalSettings, setPortalSettings] = useState({});
   const [isUpdating, setIsUpdating] = useState(false);
-  const [portalAccess, setPortalAccess] = useState([]);
-  const [showAccessHistory, setShowAccessHistory] = useState(false);
-  const [filterStatus, setFilterStatus] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
-  const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [bulkAction, setBulkAction] = useState("enable");
 
-  // Portal features
-  const portalFeatures = [
-    { id: "profile", name: "Profile Management", description: "Update personal information" },
-    { id: "academics", name: "Academic Records", description: "View grades and transcripts" },
-    { id: "attendance", name: "Attendance", description: "Check attendance records" },
-    { id: "documents", name: "Documents", description: "Access and download documents" },
-    { id: "notifications", name: "Notifications", description: "Receive announcements" },
-    { id: "calendar", name: "Calendar", description: "View academic calendar" },
-    { id: "library", name: "Library", description: "Access library resources" },
-    { id: "support", name: "Support", description: "Contact support team" }
-  ];
-
-  // Portal access levels
-  const accessLevels = [
-    { id: "basic", name: "Basic", description: "Essential features only" },
-    { id: "standard", name: "Standard", description: "Most features available" },
-    { id: "premium", name: "Premium", description: "All features available" },
-    { id: "custom", name: "Custom", description: "Select specific features" }
-  ];
+  // Minimal defaults used when enabling access
+  const defaultAccessLevel = "standard";
+  const defaultEnabledFeatures = ["profile", "notifications"];
 
   // Sample portal access data
   const samplePortalAccess = [
@@ -67,13 +47,52 @@ const StudentPortal = ({ students }) => {
     }
   ];
 
+  // (Optional) could preload portal access here if needed
+
+  // If filters specify a nested class path, stream from Firestore: students/{dept}/{year-section}
+  // keep local selectors in sync when parent filters change
   useEffect(() => {
-    setPortalAccess(samplePortalAccess);
-  }, [students]);
+    if (filters?.department !== undefined) setDept(filters.department || "");
+    if (filters?.year !== undefined) setYear(filters.year || "");
+    if (filters?.section !== undefined) setSection(filters.section || "");
+  }, [filters?.department, filters?.year, filters?.section]);
+
+  // derive department dropdown options from available data
+  useEffect(() => {
+    const fromStudents = (students || []).map(s => s.department).filter(Boolean);
+    const fromClass = (classStudents || []).map(s => s.department).filter(Boolean);
+    const unique = Array.from(new Set([...fromStudents, ...fromClass]));
+    setDepartmentOptions(unique.length ? unique : ["CSEDS", "CSE", "IT", "ECE", "EEE", "MECH", "CIVIL"]);
+  }, [students, classStudents]);
+
+  useEffect(() => {
+    if (!dept || !year || !section) {
+      setClassStudents(students);
+      return;
+    }
+    setLoading(true);
+    let unsub = null;
+    try {
+      const yearSection = `${year}-${section}`;
+      unsub = onSnapshot(collection(db, 'students', dept, yearSection), (snap) => {
+        const list = snap.docs.map(d => ({ id: d.id, ...d.data(), _dept: dept, _year: year, _section: section }));
+        setClassStudents(list);
+        setLoading(false);
+      }, (err) => {
+        console.error('StudentPortal fetch error', err);
+        setClassStudents([]);
+        setLoading(false);
+      });
+    } catch (e) {
+      console.error(e);
+      setLoading(false);
+    }
+    return () => { if (unsub) unsub(); };
+  }, [dept, year, section, students]);
 
   // Select all students
   const selectAllStudents = () => {
-    setSelectedStudents(students);
+    setSelectedStudents((classStudents || []).map(s => s.id));
   };
 
   // Clear selection
@@ -100,55 +119,26 @@ const StudentPortal = ({ students }) => {
     setIsUpdating(true);
 
     try {
-      const updatedAccess = [];
-
       for (const studentId of selectedStudents) {
         const student = students.find(s => s.id === studentId);
-        const existingAccess = portalAccess.find(access => access.studentId === studentId);
-
         const accessRecord = {
-          id: existingAccess?.id || Date.now() + Math.random(),
           studentId,
           studentName: student?.name || `${student?.firstName || ''} ${student?.lastName || ''}`.trim(),
-          accessLevel: portalSettings.accessLevel || "standard",
+          accessLevel: defaultAccessLevel,
           status: bulkAction === "enable" ? "active" : "inactive",
-          lastLogin: existingAccess?.lastLogin || null,
-          loginCount: existingAccess?.loginCount || 0,
-          enabledFeatures: portalSettings.enabledFeatures || ["profile", "notifications"],
-          createdAt: existingAccess?.createdAt || new Date(),
+          lastLogin: null,
+          loginCount: 0,
+          enabledFeatures: defaultEnabledFeatures,
+          createdAt: new Date(),
           updatedAt: new Date()
         };
 
-        updatedAccess.push(accessRecord);
-
-        // Save to database
-        try {
-          if (existingAccess) {
-            // Update existing record
-            // await updateDoc(doc(db, "studentPortalAccess", existingAccess.id), accessRecord);
-          } else {
-            // Create new record
-            await addDoc(collection(db, "studentPortalAccess"), {
-              ...accessRecord,
-              createdAt: serverTimestamp()
-            });
-          }
-        } catch (error) {
-          console.error("Error saving portal access:", error);
-        }
+        // Create or update via collection; for simplicity, just add a new record
+        await addDoc(collection(db, "studentPortalAccess"), {
+          ...accessRecord,
+          createdAt: serverTimestamp()
+        });
       }
-
-      // Update local state
-      const newAccess = [...portalAccess];
-      updatedAccess.forEach(access => {
-        const index = newAccess.findIndex(a => a.studentId === access.studentId);
-        if (index !== -1) {
-          newAccess[index] = access;
-        } else {
-          newAccess.push(access);
-        }
-      });
-      setPortalAccess(newAccess);
 
       alert("Portal access updated successfully!");
       setSelectedStudents([]);
@@ -191,35 +181,14 @@ const StudentPortal = ({ students }) => {
     }
   };
 
-  // Filter portal access
-  const filteredPortalAccess = portalAccess.filter(access => {
-    const matchesStatus = filterStatus === "all" || access.status === filterStatus;
-    const matchesSearch = access.studentName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         students.find(s => s.id === access.studentId)?.rollNo?.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesStatus && matchesSearch;
+  // Simple filtered view of loaded students
+  const visibleStudents = classStudents.filter(s => {
+    const name = (s.name || `${s.firstName || ''} ${s.lastName || ''}`).toLowerCase();
+    const roll = (s.rollNo || '').toString().toLowerCase();
+    const email = (s.email || '').toLowerCase();
+    const q = searchTerm.toLowerCase();
+    return name.includes(q) || roll.includes(q) || email.includes(q);
   });
-
-  // Calculate statistics
-  const calculateStats = () => {
-    const total = portalAccess.length;
-    const active = portalAccess.filter(access => access.status === "active").length;
-    const inactive = portalAccess.filter(access => access.status === "inactive").length;
-    const byLevel = {};
-
-    portalAccess.forEach(access => {
-      byLevel[access.accessLevel] = (byLevel[access.accessLevel] || 0) + 1;
-    });
-
-    return {
-      total,
-      active,
-      inactive,
-      byLevel,
-      activePercentage: total > 0 ? Math.round((active / total) * 100) : 0
-    };
-  };
-
-  const stats = calculateStats();
 
   return (
     <div className="space-y-6">
@@ -231,101 +200,7 @@ const StudentPortal = ({ students }) => {
           </div>
           <div>
             <h2 className="text-xl font-bold text-gray-900">Student Portal</h2>
-            <p className="text-gray-600">Manage student portal access and settings</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Quick Actions */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <button
-            onClick={() => setShowSettingsModal(true)}
-            className="p-4 border border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50 transition-all text-left"
-          >
-            <div className="flex items-center space-x-3">
-              <div className="bg-blue-100 p-2 rounded-lg">
-                <FontAwesomeIcon icon={faCog} className="text-blue-600" />
-              </div>
-              <div>
-                <p className="font-medium text-gray-900">Portal Settings</p>
-                <p className="text-sm text-gray-600">Configure portal features</p>
-              </div>
-            </div>
-          </button>
-
-          <button
-            onClick={selectAllStudents}
-            className="p-4 border border-gray-200 rounded-lg hover:border-green-300 hover:bg-green-50 transition-all text-left"
-          >
-            <div className="flex items-center space-x-3">
-              <div className="bg-green-100 p-2 rounded-lg">
-                <FontAwesomeIcon icon={faUserPlus} className="text-green-600" />
-              </div>
-              <div>
-                <p className="font-medium text-gray-900">Select All Students</p>
-                <p className="text-sm text-gray-600">Choose all students</p>
-              </div>
-            </div>
-          </button>
-
-          <button
-            onClick={() => setShowAccessHistory(!showAccessHistory)}
-            className="p-4 border border-gray-200 rounded-lg hover:border-purple-300 hover:bg-purple-50 transition-all text-left"
-          >
-            <div className="flex items-center space-x-3">
-              <div className="bg-purple-100 p-2 rounded-lg">
-                <FontAwesomeIcon icon={faHistory} className="text-purple-600" />
-              </div>
-              <div>
-                <p className="font-medium text-gray-900">Access History</p>
-                <p className="text-sm text-gray-600">View login history</p>
-              </div>
-            </div>
-          </button>
-
-          <button
-            onClick={exportPortalData}
-            className="p-4 border border-gray-200 rounded-lg hover:border-orange-300 hover:bg-orange-50 transition-all text-left"
-          >
-            <div className="flex items-center space-x-3">
-              <div className="bg-orange-100 p-2 rounded-lg">
-                <FontAwesomeIcon icon={faDownload} className="text-orange-600" />
-              </div>
-              <div>
-                <p className="font-medium text-gray-900">Export Data</p>
-                <p className="text-sm text-gray-600">Download access data</p>
-              </div>
-            </div>
-          </button>
-        </div>
-      </div>
-
-      {/* Statistics */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Portal Statistics</h3>
-        
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="text-center p-4 bg-blue-50 rounded-lg">
-            <p className="text-2xl font-bold text-blue-600">{stats.total}</p>
-            <p className="text-sm text-gray-600">Total Access</p>
-          </div>
-          
-          <div className="text-center p-4 bg-green-50 rounded-lg">
-            <p className="text-2xl font-bold text-green-600">{stats.active}</p>
-            <p className="text-sm text-gray-600">Active Users</p>
-          </div>
-          
-          <div className="text-center p-4 bg-red-50 rounded-lg">
-            <p className="text-2xl font-bold text-red-600">{stats.inactive}</p>
-            <p className="text-sm text-gray-600">Inactive Users</p>
-          </div>
-          
-          <div className="text-center p-4 bg-purple-50 rounded-lg">
-            <p className="text-2xl font-bold text-purple-600">{stats.activePercentage}%</p>
-            <p className="text-sm text-gray-600">Active Rate</p>
+            <p className="text-gray-600">Enable or disable portal access for class students</p>
           </div>
         </div>
       </div>
@@ -354,8 +229,22 @@ const StudentPortal = ({ students }) => {
           </div>
         </div>
 
+        <div className="mb-3">
+          <label className="block text-sm font-medium text-gray-700 mb-2">Search</label>
+          <div className="relative">
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search by name, roll no, or email..."
+              className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+            <FontAwesomeIcon icon={faSearch} className="absolute left-3 top-3 text-gray-400" />
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-64 overflow-y-auto">
-          {students.map(student => (
+          {visibleStudents.map(student => (
             <div
               key={student.id}
               onClick={() => toggleStudentSelection(student.id)}
@@ -377,13 +266,63 @@ const StudentPortal = ({ students }) => {
                     {student.name || `${student.firstName || ''} ${student.lastName || ''}`.trim()}
                   </p>
                   <p className="text-xs text-gray-500">
-                    {student.rollNo} • {student.department}
+                    {student.rollNo} • {student.department || dept}
                   </p>
                 </div>
               </div>
             </div>
           ))}
         </div>
+      </div>
+
+      {/* Class Selectors (fully dynamic) */}
+      <div className="bg-white rounded-lg shadow-sm p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Class Selection</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Department</label>
+            <select
+              value={dept}
+              onChange={(e)=>setDept(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="">Select</option>
+              {departmentOptions.map(opt => (
+                <option key={opt} value={opt}>{opt}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Year</label>
+            <select
+              value={year}
+              onChange={(e)=>setYear(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="">Select</option>
+              <option value="I">I</option>
+              <option value="II">II</option>
+              <option value="III">III</option>
+              <option value="IV">IV</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Section</label>
+            <select
+              value={section}
+              onChange={(e)=>setSection(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="">Select</option>
+              {['A','B','C','D','E','F'].map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+        </div>
+        {!dept || !year || !section ? (
+          <p className="mt-3 text-sm text-gray-500">Tip: Choose Department, Year and Section to load students from nested class path.</p>
+        ) : (
+          <p className="mt-3 text-sm text-gray-600">Streaming from <span className="font-mono">students/{dept}/{`${year}-${section}`}</span> — {loading ? 'loading…' : `${classStudents.length} students`}</p>
+        )}
       </div>
 
       {/* Bulk Actions */}
@@ -399,8 +338,6 @@ const StudentPortal = ({ students }) => {
             >
               <option value="enable">Enable Portal Access</option>
               <option value="disable">Disable Portal Access</option>
-              <option value="upgrade">Upgrade Access Level</option>
-              <option value="downgrade">Downgrade Access Level</option>
             </select>
 
             <button
@@ -414,211 +351,7 @@ const StudentPortal = ({ students }) => {
           </div>
         </div>
       )}
-
-      {/* Filters and Search */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Filters</h3>
-        
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              <option value="all">All Status</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Search</label>
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search students..."
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
-
-          <div className="flex items-end">
-            <button
-              onClick={() => setShowSettingsModal(true)}
-              className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2"
-            >
-              <FontAwesomeIcon icon={faCog} />
-              <span>Portal Settings</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Portal Access List */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-900">
-            Portal Access ({filteredPortalAccess.length})
-          </h3>
-        </div>
-
-        {filteredPortalAccess.length === 0 ? (
-          <div className="text-center py-8">
-            <FontAwesomeIcon icon={faUserCheck} className="text-gray-400 text-4xl mb-4" />
-            <p className="text-gray-500">No portal access records found.</p>
-            <button
-              onClick={() => setShowSettingsModal(true)}
-              className="mt-4 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2 mx-auto"
-            >
-              <FontAwesomeIcon icon={faPlus} />
-              <span>Create First Access</span>
-            </button>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Student</th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Access Level</th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Last Login</th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Login Count</th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {filteredPortalAccess.map((access) => (
-                  <tr key={access.id} className="hover:bg-gray-50">
-                    <td className="px-3 py-2 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">{access.studentName}</div>
-                      <div className="text-xs text-gray-500">
-                        {students.find(s => s.id === access.studentId)?.rollNo}
-                      </div>
-                    </td>
-                    <td className="px-3 py-2 whitespace-nowrap">
-                      <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-full ${
-                        access.accessLevel === 'premium' ? 'bg-purple-100 text-purple-800' :
-                        access.accessLevel === 'standard' ? 'bg-blue-100 text-blue-800' :
-                        access.accessLevel === 'basic' ? 'bg-green-100 text-green-800' :
-                        'bg-gray-100 text-gray-800'
-                      }`}>
-                        {access.accessLevel}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2 whitespace-nowrap">
-                      <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-full ${
-                        access.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                      }`}>
-                        <FontAwesomeIcon icon={access.status === 'active' ? faCheckCircle : faTimes} className="mr-1" />
-                        {access.status}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900">
-                      {access.lastLogin ? access.lastLogin.toLocaleDateString() : 'Never'}
-                    </td>
-                    <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900">
-                      {access.loginCount}
-                    </td>
-                    <td className="px-3 py-2 whitespace-nowrap text-sm font-medium">
-                      <div className="flex space-x-2">
-                        <button
-                          onClick={() => deletePortalAccess(access.id)}
-                          className="text-red-600 hover:text-red-900"
-                          title="Delete Access"
-                        >
-                          <FontAwesomeIcon icon={faTrash} className="text-sm" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      {/* Settings Modal */}
-      {showSettingsModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">Portal Settings</h3>
-                <button
-                  onClick={() => setShowSettingsModal(false)}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  <FontAwesomeIcon icon={faTimes} />
-                </button>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Access Level</label>
-                  <select
-                    value={portalSettings.accessLevel || "standard"}
-                    onChange={(e) => setPortalSettings(prev => ({ ...prev, accessLevel: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
-                    {accessLevels.map(level => (
-                      <option key={level.id} value={level.id}>{level.name} - {level.description}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Enabled Features</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {portalFeatures.map(feature => (
-                      <label key={feature.id} className="flex items-center space-x-2">
-                        <input
-                          type="checkbox"
-                          checked={portalSettings.enabledFeatures?.includes(feature.id) || false}
-                          onChange={(e) => {
-                            const currentFeatures = portalSettings.enabledFeatures || [];
-                            if (e.target.checked) {
-                              setPortalSettings(prev => ({
-                                ...prev,
-                                enabledFeatures: [...currentFeatures, feature.id]
-                              }));
-                            } else {
-                              setPortalSettings(prev => ({
-                                ...prev,
-                                enabledFeatures: currentFeatures.filter(f => f !== feature.id)
-                              }));
-                            }
-                          }}
-                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                        />
-                        <span className="text-sm text-gray-700">{feature.name}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="flex space-x-3">
-                  <button
-                    onClick={() => setShowSettingsModal(false)}
-                    className="flex-1 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg"
-                  >
-                    Save Settings
-                  </button>
-                  <button
-                    onClick={() => setShowSettingsModal(false)}
-                    className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* End simplified portal */}
     </div>
   );
 };

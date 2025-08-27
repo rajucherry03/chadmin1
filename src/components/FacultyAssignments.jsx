@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { collection, getDocs, doc, getDoc, updateDoc } from "firebase/firestore";
+import { collection, collectionGroup, getDocs, doc, getDoc, updateDoc, query, where } from "firebase/firestore";
 import { db } from "../firebase";
 
 function FacultyAssignments() {
@@ -13,52 +13,62 @@ function FacultyAssignments() {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   useEffect(() => {
-    const fetchFacultyAssignments = async () => {
+    const fetchAssignmentsFast = async () => {
       setLoading(true);
       try {
-        const facultySnapshot = await getDocs(collection(db, "faculty"));
-        const facultyList = facultySnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
+        // Build a map of faculty members across departments using collectionGroup("members")
+        const facultyMap = new Map();
+        try {
+          const facultyMembersSnap = await getDocs(collectionGroup(db, "members"));
+          facultyMembersSnap.forEach((m) => {
+            facultyMap.set(m.id, { id: m.id, path: m.ref.path, ...m.data() });
+          });
+        } catch (_) {
+          // Fallback: try top-level faculty collection if present
+          const fallbackSnap = await getDocs(collection(db, "faculty"));
+          fallbackSnap.forEach((f) => {
+            facultyMap.set(f.id, { id: f.id, path: `faculty/${f.id}`, ...f.data() });
+          });
+        }
+
+        // Fetch all courseDetails with an instructor set. Prefer indexed where, fallback to client filter
+        let coursesSnap;
+        try {
+          const qAssigned = query(collectionGroup(db, "courseDetails"), where("instructor", "!=", null));
+          coursesSnap = await getDocs(qAssigned);
+        } catch (_) {
+          coursesSnap = await getDocs(collectionGroup(db, "courseDetails"));
+        }
 
         const assignments = [];
-        const years = ["I", "II", "III", "IV"];
-        const sections = ["A", "B", "C"];
-
-        for (const year of years) {
-          for (const section of sections) {
-            for (const faculty of facultyList) {
-              const assignedCourses = faculty.courses || [];
-              for (const courseId of assignedCourses) {
-                try {
-                  const courseDoc = await getDoc(
-                    doc(
-                      db,
-                      `courses/Computer Science & Engineering (Data Science)/years/${year}/sections/${section}/courseDetails/${courseId}`
-                    )
-                  );
-
-                  if (courseDoc.exists()) {
-                    const courseData = courseDoc.data();
-                    assignments.push({
-                      id: courseId, // Unique ID
-                      facultyId: faculty.id,
-                      facultyName: faculty.name,
-                      facultyDesignation: faculty.designation,
-                      year,
-                      section,
-                      courseCode: courseData.courseCode,
-                      courseName: courseData.courseName,
-                    });
-                  }
-                } catch (err) {
-                  console.warn(`Error fetching course: ${courseId} for year ${year}, section ${section}`, err);
-                }
-              }
-            }
-          }
-        }
+        coursesSnap.forEach((docSnap) => {
+          const data = docSnap.data() || {};
+          const instructorId = data.instructor;
+          if (!instructorId) return;
+          // Parse path: courses/{dept}/years/{year}/sections/{section}/courseDetails/{courseId}
+          const segments = docSnap.ref.path.split("/");
+          const dept = segments[1] || "";
+          const year = segments[3] || "";
+          const section = segments[5] || "";
+          const courseId = segments[7] || docSnap.id;
+          const fac = facultyMap.get(instructorId) || {};
+          // Robust field fallbacks across different writers
+          const courseCode = data.courseCode || data.code || data.course_code || data.courseCODE || "";
+          const courseName = data.courseName || data.title || data.name || data.course_name || "";
+          assignments.push({
+            id: courseId,
+            courseDocPath: docSnap.ref.path,
+            department: dept,
+            year,
+            section,
+            courseCode,
+            courseName,
+            facultyId: instructorId,
+            facultyName: fac.name || "Unknown",
+            facultyDesignation: fac.designation || "",
+            facultyDocPath: fac.path || null,
+          });
+        });
 
         setFacultyAssignments(assignments);
         setFilteredAssignments(assignments);
@@ -69,7 +79,7 @@ function FacultyAssignments() {
       }
     };
 
-    fetchFacultyAssignments();
+    fetchAssignmentsFast();
   }, []);
 
   const handleSearch = (e) => {
@@ -92,9 +102,12 @@ function FacultyAssignments() {
 
   const filterAssignments = (term, year, section) => {
     const filtered = facultyAssignments.filter((assignment) => {
-      const matchesSearch =
-        assignment.facultyName.toLowerCase().includes(term) ||
-        assignment.facultyDesignation.toLowerCase().includes(term);
+      const matchesSearch = (
+        (assignment.facultyName || "").toLowerCase().includes(term) ||
+        (assignment.facultyDesignation || "").toLowerCase().includes(term) ||
+        (assignment.courseName || "").toLowerCase().includes(term) ||
+        (assignment.courseCode || "").toLowerCase().includes(term)
+      );
       const matchesYear = year ? assignment.year === year : true;
       const matchesSection = section ? assignment.section === section : true;
       return matchesSearch && matchesYear && matchesSection;
@@ -110,13 +123,15 @@ function FacultyAssignments() {
   const handleDelete = async (assignment) => {
     if (window.confirm("Are you sure you want to delete this relationship?")) {
       try {
-        // Step 1: Remove the course from the faculty's assigned courses
-        const facultyRef = doc(db, `faculty/${assignment.facultyId}`);
-        const facultyDoc = await getDoc(facultyRef);
-        if (facultyDoc.exists()) {
-          const facultyData = facultyDoc.data();
-          const updatedCourses = facultyData.courses.filter((courseId) => courseId !== assignment.id);
-          await updateDoc(facultyRef, { courses: updatedCourses });
+        // Step 1: Remove the course from the faculty's assigned courses (if we know their doc path)
+        if (assignment.facultyDocPath) {
+          const facultyRef = doc(db, assignment.facultyDocPath);
+          const facultyDocSnap = await getDoc(facultyRef);
+          if (facultyDocSnap.exists()) {
+            const facultyData = facultyDocSnap.data() || {};
+            const updatedCourses = (facultyData.courses || []).filter((courseId) => courseId !== assignment.id);
+            await updateDoc(facultyRef, { courses: updatedCourses });
+          }
         }
 
         // Step 2: Remove the course from all students in the specified year and section
@@ -138,11 +153,8 @@ function FacultyAssignments() {
           await updateDoc(studentRef, { courses: updatedStudentCourses });
         }
 
-        // Step 3: Reset the instructor and students relationship in the course document
-        const courseRef = doc(
-          db,
-          `courses/Computer Science & Engineering (Data Science)/years/${assignment.year}/sections/${assignment.section}/courseDetails/${assignment.id}`
-        );
+        // Step 3: Reset the instructor and students relationship in the course document (use dynamic path)
+        const courseRef = doc(db, assignment.courseDocPath);
         await updateDoc(courseRef, {
           instructor: null, // Remove the instructor
           students: [], // Clear the list of students
@@ -239,16 +251,16 @@ function FacultyAssignments() {
                   <strong>Designation:</strong> {assignment.facultyDesignation}
                 </p>
                 <p className="text-gray-600">
-                  <strong>Year:</strong> {assignment.year}
+                  <strong>Year:</strong> {assignment.year || "-"}
                 </p>
                 <p className="text-gray-600">
-                  <strong>Section:</strong> {assignment.section}
+                  <strong>Section:</strong> {assignment.section === "ALL_SECTIONS" ? "All Sections" : (assignment.section || "-")}
                 </p>
                 <p className="text-gray-600">
-                  <strong>Course Code:</strong> {assignment.courseCode}
+                  <strong>Course Code:</strong> {assignment.courseCode || "(Not set)"}
                 </p>
                 <p className="text-gray-600">
-                  <strong>Course Name:</strong> {assignment.courseName}
+                  <strong>Course Name:</strong> {assignment.courseName || "(Not set)"}
                 </p>
                 <div className="mt-4">
                   <button

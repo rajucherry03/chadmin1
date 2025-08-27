@@ -39,4 +39,45 @@ export const courseDocPath = (department, year, section, courseId) => {
   return `${coursesCollectionPath(department, year, section)}/${courseId}`;
 };
 
+// Variants helpers to support legacy structures
+// Generate possible department identifiers, e.g., CSE_DS -> [CSE_DS, CSEDS]
+export const getDepartmentVariants = (department) => {
+  const variants = new Set();
+  const normalized = normalizeDepartmentKey(department || "UNK");
+  variants.add(normalized);
+  // Compact form without underscores (e.g., CSE_DS -> CSEDS)
+  const compact = normalized.replace(/_/g, "");
+  if (compact) variants.add(compact);
+  // If input is already compact, also add underscored
+  if (department && /[A-Z0-9]+/i.test(department) && !department.includes("_")) {
+    const underscored = department.replace(/([^_])([A-Z])/g, "$1_$2").toUpperCase();
+    variants.add(normalizeDepartmentKey(underscored));
+  }
+  return Array.from(variants);
+};
+
+// Generate possible group key variants for students subcollections
+// Default current: Section-Year (e.g., B-III), Legacy: Year-Section (e.g., III-B)
+export const buildStudentsGroupKeyVariants = (year, section) => {
+  const y = (year || "U").toString().toUpperCase();
+  const s = (section || "U").toString().toUpperCase();
+  return [
+    `${s}-${y}`,
+    `${y}-${s}`,
+  ];
+};
+
+// List all plausible students collection paths to try for read operations
+export const possibleStudentsCollectionPaths = (department, year, section) => {
+  const deptVariants = getDepartmentVariants(department);
+  const keyVariants = buildStudentsGroupKeyVariants(year, section);
+  const paths = [];
+  deptVariants.forEach((dept) => {
+    keyVariants.forEach((key) => {
+      paths.push(`students/${dept}/${key}`);
+    });
+  });
+  return paths;
+};
+
 

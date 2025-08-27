@@ -50,34 +50,73 @@ const StudentManagement = () => {
   const pageSize = 6; // Reduced for better fit
   const [showFilters, setShowFilters] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [filterSection, setFilterSection] = useState(() => localStorage.getItem("sm.filterSection") || "");
 
-  // Fetch students from all nested collections named "students"
+  // Edit/View modal state
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingStudent, setEditingStudent] = useState(null);
+  const [editForm, setEditForm] = useState({});
+
+  // Fetch students
+  // If department, year and section are chosen, stream from nested path: students/{department}/{year-section}
+  // Otherwise, fall back to root "students" for a general overview
   useEffect(() => {
-    const unsubscribe = onSnapshot(
-      collectionGroup(db, "students"),
-      (snapshot) => {
-        const studentsData = [];
-        snapshot.forEach((docSnap) => {
-          studentsData.push({ id: docSnap.id, ...docSnap.data() });
-        });
-        setStudents(studentsData);
-        setLoading(false);
-        setError("");
-      },
-      (err) => {
-        console.error("Error fetching students:", err);
-        setError("Failed to load students. Please try again.");
-        setLoading(false);
+    setLoading(true);
+    let unsub = null;
+    try {
+      if (filterDepartment && filterYear && filterSection) {
+        const yearSection = `${filterYear}-${filterSection}`;
+        unsub = onSnapshot(
+          collection(db, "students", filterDepartment, yearSection),
+          (snapshot) => {
+            const studentsData = [];
+            snapshot.forEach((docSnap) => {
+              studentsData.push({ id: docSnap.id, _dept: filterDepartment, _year: filterYear, _section: filterSection, ...docSnap.data() });
+            });
+            setStudents(studentsData);
+            setLoading(false);
+            setError("");
+          },
+          (err) => {
+            console.error("Error fetching students:", err);
+            setError("Failed to load students. Please try again.");
+            setLoading(false);
+          }
+        );
+      } else {
+        // Root overview
+        unsub = onSnapshot(
+          collection(db, "students"),
+          (snapshot) => {
+            const studentsData = [];
+            snapshot.forEach((docSnap) => {
+              studentsData.push({ id: docSnap.id, ...docSnap.data() });
+            });
+            setStudents(studentsData);
+            setLoading(false);
+            setError("");
+          },
+          (err) => {
+            console.error("Error fetching students:", err);
+            setError("Failed to load students. Please try again.");
+            setLoading(false);
+          }
+        );
       }
-    );
-
-    return () => unsubscribe();
-  }, []);
+    } catch (e) {
+      console.error(e);
+      setError("Failed to load students. Please try again.");
+      setLoading(false);
+    }
+    return () => {
+      if (unsub) unsub();
+    };
+  }, [filterDepartment, filterYear, filterSection]);
 
   // Calculate statistics
   const stats = {
     totalStudents: students.length,
-    activeStudents: students.filter(s => s.status === 'active').length,
+    activeStudents: students.filter(s => (s.status || '').toString().toLowerCase() === 'active').length,
     newAdmissions: students.filter(s => {
       const admissionDate = s.admissionDate || s.createdAt;
       const thirtyDaysAgo = new Date();
@@ -127,14 +166,72 @@ const StudentManagement = () => {
   useEffect(() => {
     // Reset to first page when filters/search/sort change
     setCurrentPage(1);
-  }, [debouncedSearch, filterYear, filterDepartment, sortBy, sortDir]);
+  }, [debouncedSearch, filterYear, filterDepartment, filterSection, sortBy, sortDir]);
 
   const clearFilters = () => {
     setSearchTerm("");
     setFilterYear("");
     setFilterDepartment("");
+    setFilterSection("");
     setSortBy("name");
     setSortDir("asc");
+  };
+
+  // CRUD helpers
+  const openEditModal = (student) => {
+    setEditingStudent(student);
+    setEditForm({
+      name: student.name || `${student.firstName || ''} ${student.lastName || ''}`.trim(),
+      rollNo: student.rollNo || '',
+      email: student.email || '',
+      department: student._dept || student.department || filterDepartment || '',
+      year: student._year || student.year || filterYear || '',
+      section: student._section || student.section || filterSection || '',
+      status: student.status || 'active'
+    });
+    setShowEditModal(true);
+  };
+
+  const saveEdit = async () => {
+    if (!editForm.department || !editForm.year || !editForm.section) {
+      alert('Please select department, year and section');
+      return;
+    }
+    try {
+      const yearSection = `${editForm.year}-${editForm.section}`;
+      const ref = doc(db, 'students', editForm.department, yearSection, editingStudent.id);
+      await updateDoc(ref, {
+        name: editForm.name,
+        rollNo: editForm.rollNo,
+        email: editForm.email,
+        department: editForm.department,
+        year: editForm.year,
+        section: editForm.section,
+        status: editForm.status
+      });
+      setShowEditModal(false);
+    } catch (e) {
+      console.error('Failed to update student', e);
+      alert('Failed to update student');
+    }
+  };
+
+  const removeStudent = async (student) => {
+    try {
+      const dept = student._dept || filterDepartment;
+      const year = student._year || filterYear;
+      const section = student._section || filterSection;
+      if (!dept || !year || !section) {
+        alert('Cannot determine student location. Select filters first.');
+        return;
+      }
+      if (!window.confirm('Delete this student?')) return;
+      const ref = doc(db, 'students', dept, `${year}-${section}`, student.id);
+      await deleteDoc(ref);
+    } catch (e) {
+      console.error('Failed to delete student', e);
+      alert('Failed to delete student');
+    }
   };
 
   // Quick action handlers
@@ -285,6 +382,7 @@ const StudentManagement = () => {
   useEffect(() => { localStorage.setItem("sm.filterDepartment", filterDepartment); }, [filterDepartment]);
   useEffect(() => { localStorage.setItem("sm.sortBy", sortBy); }, [sortBy]);
   useEffect(() => { localStorage.setItem("sm.sortDir", sortDir); }, [sortDir]);
+  useEffect(() => { localStorage.setItem("sm.filterSection", filterSection); }, [filterSection]);
 
   // Debounce search input
   useEffect(() => {
@@ -464,9 +562,9 @@ const StudentManagement = () => {
                             </td>
                             <td className="px-3 py-2 whitespace-nowrap text-sm font-medium">
                               <div className="flex space-x-2">
-                                <button className="text-blue-600 hover:text-blue-900 p-1"><FontAwesomeIcon icon={faEye} className="text-sm" /></button>
-                                <button className="text-green-600 hover:text-green-900 p-1"><FontAwesomeIcon icon={faEdit} className="text-sm" /></button>
-                                <button className="text-red-600 hover:text-red-900 p-1"><FontAwesomeIcon icon={faTrash} className="text-sm" /></button>
+                                <button onClick={() => openEditModal(student)} className="text-blue-600 hover:text-blue-900 p-1" title="View"><FontAwesomeIcon icon={faEye} className="text-sm" /></button>
+                                <button onClick={() => openEditModal(student)} className="text-green-600 hover:text-green-900 p-1" title="Edit"><FontAwesomeIcon icon={faEdit} className="text-sm" /></button>
+                                <button onClick={() => removeStudent(student)} className="text-red-600 hover:text-red-900 p-1" title="Delete"><FontAwesomeIcon icon={faTrash} className="text-sm" /></button>
                               </div>
                             </td>
                           </tr>
@@ -516,9 +614,9 @@ const StudentManagement = () => {
                             </td>
                             <td className="px-1.5 py-1.5 whitespace-nowrap text-xs font-medium">
                               <div className="flex space-x-0.5">
-                                <button className="text-blue-600 hover:text-blue-900 p-0.5"><FontAwesomeIcon icon={faEye} className="text-xs" /></button>
-                                <button className="text-green-600 hover:text-green-900 p-0.5"><FontAwesomeIcon icon={faEdit} className="text-xs" /></button>
-                                <button className="text-red-600 hover:text-red-900 p-0.5"><FontAwesomeIcon icon={faTrash} className="text-xs" /></button>
+                                <button onClick={() => openEditModal(student)} className="text-blue-600 hover:text-blue-900 p-0.5"><FontAwesomeIcon icon={faEye} className="text-xs" /></button>
+                                <button onClick={() => openEditModal(student)} className="text-green-600 hover:text-green-900 p-0.5"><FontAwesomeIcon icon={faEdit} className="text-xs" /></button>
+                                <button onClick={() => removeStudent(student)} className="text-red-600 hover:text-red-900 p-0.5"><FontAwesomeIcon icon={faTrash} className="text-xs" /></button>
                               </div>
                             </td>
                           </tr>
@@ -553,9 +651,9 @@ const StudentManagement = () => {
                             </p>
                             <p className="text-xs text-gray-500 truncate mb-1">{student.email}</p>
                             <div className="flex gap-1 text-blue-600">
-                              <button className="text-xs bg-blue-50 px-1.5 py-0.5 rounded">View</button>
-                              <button className="text-xs bg-green-50 px-1.5 py-0.5 rounded text-green-600">Edit</button>
-                              <button className="text-xs bg-red-50 px-1.5 py-0.5 rounded text-red-600">Delete</button>
+                              <button onClick={() => openEditModal(student)} className="text-xs bg-blue-50 px-1.5 py-0.5 rounded">View</button>
+                              <button onClick={() => openEditModal(student)} className="text-xs bg-green-50 px-1.5 py-0.5 rounded text-green-600">Edit</button>
+                              <button onClick={() => removeStudent(student)} className="text-xs bg-red-50 px-1.5 py-0.5 rounded text-red-600">Delete</button>
                             </div>
                           </div>
                         </div>
@@ -641,7 +739,7 @@ const StudentManagement = () => {
         return <CommunicationHub students={students} />;
       
       case 'portal':
-        return <StudentPortal students={students} />;
+        return <StudentPortal students={students} filters={{ department: filterDepartment, year: filterYear, section: filterSection }} />;
       
       case 'feedback':
         return <StudentFeedback students={students} />;
@@ -792,6 +890,20 @@ const StudentManagement = () => {
             </select>
           </div>
 
+          <div className="min-w-0">
+            <label className="block text-xs font-medium text-gray-700 mb-1">Filter by Section</label>
+            <select
+              value={filterSection}
+              onChange={(e) => setFilterSection(e.target.value)}
+              className="w-full px-2 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-xs"
+            >
+              <option value="">All Sections</option>
+              {['A','B','C','D','E','F'].map(sec => (
+                <option key={sec} value={sec}>{sec}</option>
+              ))}
+            </select>
+          </div>
+
           <div className="sm:col-span-2 lg:col-span-1 min-w-0">
             <label className="block text-xs font-medium text-gray-700 mb-1">Sort</label>
             <div className="grid grid-cols-2 gap-2">
@@ -836,6 +948,12 @@ const StudentManagement = () => {
               <span className="inline-flex items-center px-1.5 py-0.5 text-xs bg-gray-100 rounded">
                 Dept: {filterDepartment}
                 <button className="ml-1 text-gray-500" onClick={() => setFilterDepartment("")}>×</button>
+              </span>
+            )}
+            {filterSection && (
+              <span className="inline-flex items-center px-1.5 py-0.5 text-xs bg-gray-100 rounded">
+                Sec: {filterSection}
+                <button className="ml-1 text-gray-500" onClick={() => setFilterSection("")}>×</button>
               </span>
             )}
           </div>
@@ -883,6 +1001,61 @@ const StudentManagement = () => {
       </button>
 
       {/* Modals */}
+      {showEditModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-lg w-full">
+            <div className="p-4 sm:p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">{editingStudent ? 'View / Edit Student' : 'Student'}</h3>
+                <button onClick={() => setShowEditModal(false)} className="text-gray-400 hover:text-gray-600">
+                  <FontAwesomeIcon icon={faTimes} />
+                </button>
+              </div>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Name</label>
+                  <input value={editForm.name || ''} onChange={(e)=>setEditForm(v=>({...v,name:e.target.value}))} className="w-full px-3 py-2 border border-gray-300 rounded"/>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Roll No</label>
+                    <input value={editForm.rollNo || ''} onChange={(e)=>setEditForm(v=>({...v,rollNo:e.target.value}))} className="w-full px-3 py-2 border border-gray-300 rounded"/>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Email</label>
+                    <input value={editForm.email || ''} onChange={(e)=>setEditForm(v=>({...v,email:e.target.value}))} className="w-full px-3 py-2 border border-gray-300 rounded"/>
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Department</label>
+                    <input value={editForm.department || ''} onChange={(e)=>setEditForm(v=>({...v,department:e.target.value}))} className="w-full px-3 py-2 border border-gray-300 rounded"/>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Year</label>
+                    <input value={editForm.year || ''} onChange={(e)=>setEditForm(v=>({...v,year:e.target.value}))} className="w-full px-3 py-2 border border-gray-300 rounded"/>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Section</label>
+                    <input value={editForm.section || ''} onChange={(e)=>setEditForm(v=>({...v,section:e.target.value}))} className="w-full px-3 py-2 border border-gray-300 rounded"/>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Status</label>
+                  <select value={editForm.status || 'active'} onChange={(e)=>setEditForm(v=>({...v,status:e.target.value}))} className="w-full px-3 py-2 border border-gray-300 rounded">
+                    <option value="active">active</option>
+                    <option value="inactive">inactive</option>
+                  </select>
+                </div>
+              </div>
+              <div className="mt-5 flex justify-end gap-2">
+                <button onClick={()=>setShowEditModal(false)} className="px-4 py-2 border border-gray-300 rounded">Close</button>
+                <button onClick={saveEdit} className="px-4 py-2 bg-blue-600 text-white rounded">Save</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {showBulkImport && (
         <EnhancedBulkImport 
           onClose={() => setShowBulkImport(false)} 

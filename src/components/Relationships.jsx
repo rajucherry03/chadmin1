@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { collection, getDocs, doc, writeBatch } from "firebase/firestore";
+import { collection, getDocs, doc, writeBatch, deleteField } from "firebase/firestore";
 import { db } from "../firebase";
 import {
   studentsCollectionPath,
   studentDocPath,
   coursesCollectionPath,
   courseDocPath,
+  possibleStudentsCollectionPaths,
 } from "../utils/pathBuilders";
 
 function Relationships() {
@@ -20,6 +21,39 @@ function Relationships() {
   const [selectedCourse, setSelectedCourse] = useState("");
   const [selectedFaculty, setSelectedFaculty] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // Natural sort by roll number with graceful fallbacks
+  const compareByRollNo = (a, b) => {
+    const ar = (a.rollNo || "").toString();
+    const br = (b.rollNo || "").toString();
+    if (ar && br) {
+      const cmp = ar.localeCompare(br, undefined, { numeric: true, sensitivity: "base" });
+      if (cmp !== 0) return cmp;
+    } else if (ar && !br) {
+      return -1;
+    } else if (!ar && br) {
+      return 1;
+    }
+    return (a.id || "").toString().localeCompare((b.id || "").toString(), undefined, { numeric: true, sensitivity: "base" });
+  };
+
+  const sortedStudents = useMemo(() => {
+    const list = Array.isArray(students) ? [...students] : [];
+    return list.sort(compareByRollNo);
+  }, [students]);
+
+  const visibleStudents = useMemo(() => {
+    const q = (searchQuery || "").toString().trim().toLowerCase();
+    if (!q) return sortedStudents;
+    return sortedStudents.filter((s) => {
+      const name = (s.studentName || s.name || s.fullName || "").toString().toLowerCase();
+      const first = (s.firstName || "").toString().toLowerCase();
+      const last = (s.lastName || "").toString().toLowerCase();
+      const roll = (s.rollNo || "").toString().toLowerCase();
+      return name.includes(q) || roll.includes(q) || `${first} ${last}`.trim().includes(q);
+    });
+  }, [sortedStudents, searchQuery]);
 
   // Fetch faculty for selected department
   useEffect(() => {
@@ -48,41 +82,70 @@ function Relationships() {
 
       try {
         const normalizedSection = selectedSection.toUpperCase();
-
         const studentsPath = studentsCollectionPath(selectedDepartment, selectedYear, normalizedSection);
-        const coursesPath = coursesCollectionPath(selectedDepartment, selectedYear, normalizedSection);
-        console.log("Fetching courses from:", coursesPath);
+        // Always read courses from ALL_SECTIONS for the chosen year
+        const coursesPath = coursesCollectionPath(selectedDepartment, selectedYear, "ALL_SECTIONS");
+        console.log("Fetching courses from (ALL_SECTIONS):", coursesPath);
 
-        const [studentsSnapshot, coursesSnapshot] = await Promise.all([
-          getDocs(collection(db, studentsPath)).catch(() => ({ docs: [] })),
-          getDocs(collection(db, coursesPath)).catch(() => ({ docs: [] })),
-        ]);
+        // Fetch students with variants: try multiple possible paths until we find data
+        let studentsData = [];
+        const variantPaths = [studentsPath, ...possibleStudentsCollectionPaths(selectedDepartment, selectedYear, normalizedSection)];
+        const seenPaths = new Set();
+        for (const path of variantPaths) {
+          if (seenPaths.has(path)) continue;
+          seenPaths.add(path);
+          try {
+            const snap = await getDocs(collection(db, path));
+            if (snap && snap.size > 0) {
+              const list = snap.docs.map((d) => ({ id: d.id, _path: `${path}/${d.id}`, ...d.data() }));
+              studentsData = list;
+              break; // Use the first non-empty variant
+            }
+          } catch (_) {
+            // ignore and try next variant
+          }
+        }
+        // As a last resort, try legacy structure: students/{year}/{section}
+        if (studentsData.length === 0) {
+          try {
+            const legacySnap = await getDocs(collection(db, `students/${selectedYear}/${normalizedSection}`));
+            if (legacySnap && legacySnap.size > 0) {
+              studentsData = legacySnap.docs.map((d) => ({ id: d.id, _path: `students/${selectedYear}/${normalizedSection}/${d.id}`, ...d.data() }));
+            }
+          } catch (_) {}
+        }
 
-        const studentsData = studentsSnapshot.docs
-          .map((d) => ({ id: d.id, ...d.data() }))
-          .sort((a, b) => (a.rollNo && b.rollNo ? a.rollNo.localeCompare(b.rollNo) : 0));
+        studentsData = studentsData.sort(compareByRollNo);
         setStudents(studentsData);
 
-        let coursesData = coursesSnapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+        const coursesSnapshot = await getDocs(collection(db, coursesPath)).catch(() => ({ docs: [] }));
+        let coursesData = coursesSnapshot.docs.map((d) => ({ id: d.id, _path: `${coursesPath}/${d.id}`, ...d.data() }));
 
         // Fallback: try ALL_SECTIONS if specific section is empty
-        if (coursesData.length === 0 && normalizedSection !== "ALL_SECTIONS") {
-          const allSecPath = coursesCollectionPath(selectedDepartment, selectedYear, "ALL_SECTIONS");
-          console.log("Trying fallback path:", allSecPath);
-          const allSecSnap = await getDocs(collection(db, allSecPath)).catch(() => ({ docs: [] }));
-          coursesData = allSecSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        // No additional fallback needed since we intentionally load from ALL_SECTIONS
+
+        // Final fallback: scan courseDetails across the DB and filter by dept/year from path
+        if (coursesData.length === 0) {
+          try {
+            const cgSnap = await getDocs((await import("firebase/firestore")).collectionGroup(db, "courseDetails"));
+            const filtered = [];
+            cgSnap.forEach((docSnap) => {
+              const path = docSnap.ref.path; // courses/{dept}/years/{year}/sections/{section}/courseDetails/{id}
+              const seg = path.split("/");
+              const dept = seg[1];
+              const year = seg[3];
+              if (dept === selectedDepartment && year === selectedYear) {
+                filtered.push({ id: docSnap.id, _path: path, ...docSnap.data() });
+              }
+            });
+            coursesData = filtered;
+          } catch (_) {
+            // ignore
+          }
         }
         setCourses(coursesData);
       } catch (error) {
         console.error("Error fetching data:", error);
-        // Backward compatibility for legacy student paths: students/{year}/{section}
-        try {
-          const legacyStudentsSnap = await getDocs(
-            collection(db, `students/${selectedYear}/${normalizedSection}`)
-          );
-          const legacyStudents = legacyStudentsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
-          if (legacyStudents.length > 0) setStudents(legacyStudents);
-        } catch {}
       }
 
       setIsLoading(false);
@@ -100,14 +163,15 @@ function Relationships() {
     );
   };
 
-  // Handle "Select All" or "Deselect All"
+  // Handle "Select All Visible" or "Deselect Visible"
   const handleSelectAll = () => {
-    if (selectedStudents.length === students.length) {
-      // If all are selected, deselect all
-      setSelectedStudents([]);
+    if (visibleStudents.length > 0 && visibleStudents.every(s => selectedStudents.includes(s.id))) {
+      const remaining = selectedStudents.filter(id => !visibleStudents.some(s => s.id === id));
+      setSelectedStudents(remaining);
     } else {
-      // Otherwise, select all
-      setSelectedStudents(students.map((student) => student.id));
+      const visibleIds = visibleStudents.map((student) => student.id);
+      const merged = Array.from(new Set([...(selectedStudents || []), ...visibleIds]));
+      setSelectedStudents(merged);
     }
   };
 
@@ -135,7 +199,11 @@ function Relationships() {
 
       // Upsert each student with the course in their list
       studentIdsToAssign.forEach((studentId) => {
-        const studentRef = doc(db, studentDocPath(selectedDepartment, selectedYear, normalizedSection, studentId));
+        const existing = students.find(s => s.id === studentId);
+        const studentPath = existing && existing._path
+          ? existing._path
+          : studentDocPath(selectedDepartment, selectedYear, normalizedSection, studentId);
+        const studentRef = doc(db, studentPath);
         batch.set(studentRef, { courses: [selectedCourse] }, { merge: true });
       });
 
@@ -150,16 +218,44 @@ function Relationships() {
         { merge: true }
       );
 
-      // Upsert the course with instructor and students
+      // Upsert the course with instructor and students in the SECTION-SPECIFIC document
+      // We read from ALL_SECTIONS but create/update per-section doc so each section is separated
+      const selectedCourseMeta = courses.find(c => c.id === selectedCourse) || {};
       const courseRef = doc(db, courseDocPath(selectedDepartment, selectedYear, normalizedSection, selectedCourse));
+      const studentsBySection = {
+        [normalizedSection]: studentIdsToAssign
+      };
       batch.set(
         courseRef,
         {
+          // carry over core fields from ALL_SECTIONS source doc
+          courseCode: selectedCourseMeta.courseCode || selectedCourseMeta.code || undefined,
+          courseName: selectedCourseMeta.courseName || selectedCourseMeta.title || selectedCourseMeta.name || undefined,
           instructor: selectedFaculty,
-          students: studentIdsToAssign,
+          // remove legacy top-level students list to avoid duplication
+          students: deleteField(),
+          studentsBySection,
+          masterCoursePath: selectedCourseMeta._path || null,
         },
         { merge: true }
       );
+
+      // Additionally, write a normalized per-section sub-document under the master ALL_SECTIONS course doc for scalability
+      if (selectedCourseMeta && selectedCourseMeta._path) {
+        const masterSectionsPath = `${selectedCourseMeta._path}/sections/${normalizedSection}`;
+        const masterSectionRef = doc(db, masterSectionsPath);
+        batch.set(
+          masterSectionRef,
+          {
+            instructor: selectedFaculty,
+            students: studentIdsToAssign,
+            department: selectedDepartment,
+            year: selectedYear,
+            section: normalizedSection,
+          },
+          { merge: true }
+        );
+      }
 
       await batch.commit();
       alert(`Assigned course to ${studentIdsToAssign.length} students and faculty successfully.`);
@@ -232,33 +328,63 @@ function Relationships() {
 
             {students.length > 0 && (
               <div>
-                <h2 className="text-2xl font-semibold text-gray-700 mb-2">
-                  Select Students
-                </h2>
-                <button
-                  onClick={handleSelectAll}
-                  className="mb-4 px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
-                >
-                  {selectedStudents.length === students.length
-                    ? "Deselect All"
-                    : "Select All"}
-                </button>
-                <div className="space-y-2">
-                  {students.map((student) => (
-                    <div key={student.id} className="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        id={student.id}
-                        checked={selectedStudents.includes(student.id)}
-                        onChange={() => handleStudentSelection(student.id)}
-                      />
-                      <label htmlFor={student.id}>
-                        {student.rollNo
-                          ? `${student.rollNo} - ${student.name || `Student ${student.id}`}`
-                          : `Student ID: ${student.id}`}
-                      </label>
-                    </div>
-                  ))}
+                <h2 className="text-2xl font-semibold text-gray-700 mb-2">Select Students</h2>
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-3">
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search by roll no or name"
+                    className="w-full md:w-1/2 p-2 border border-gray-300 rounded-md"
+                  />
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleSelectAll}
+                      className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+                    >
+                      {visibleStudents.length > 0 && visibleStudents.every(s => selectedStudents.includes(s.id))
+                        ? "Deselect Visible"
+                        : "Select Visible"}
+                    </button>
+                    <span className="text-sm text-gray-600">Selected: {selectedStudents.length} / {students.length}</span>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto border border-gray-200 rounded-md">
+                  <table className="min-w-full text-sm">
+                    <thead className="bg-gray-50 text-gray-700">
+                      <tr>
+                        <th className="p-2 w-10 text-center">Sel</th>
+                        <th className="p-2 text-left">Roll No</th>
+                        <th className="p-2 text-left">Name</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {visibleStudents.map((student) => {
+                        const checked = selectedStudents.includes(student.id);
+                        const displayName = student.studentName || student.name || student.fullName || ((student.firstName || student.lastName) ? `${student.firstName || ''} ${student.lastName || ''}`.trim() : undefined);
+                        return (
+                          <tr key={student.id} className={checked ? "bg-blue-50" : ""}>
+                            <td className="p-2 text-center">
+                              <input
+                                type="checkbox"
+                                id={student.id}
+                                checked={checked}
+                                onChange={() => handleStudentSelection(student.id)}
+                              />
+                            </td>
+                            <td className="p-2 font-medium text-gray-800">{student.rollNo || student.id}</td>
+                            <td className="p-2 text-gray-700">{displayName || `Student ${student.id}`}</td>
+                          </tr>
+                        );
+                      })}
+                      {visibleStudents.length === 0 && (
+                        <tr>
+                          <td className="p-3 text-center text-gray-500" colSpan={3}>No matching students</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             )}
