@@ -41,34 +41,74 @@ function FacultyAssignments() {
         }
 
         const assignments = [];
-        coursesSnap.forEach((docSnap) => {
+        for (const docSnap of coursesSnap.docs) {
           const data = docSnap.data() || {};
-          const instructorId = data.instructor;
-          if (!instructorId) return;
-          // Parse path: courses/{dept}/years/{year}/sections/{section}/courseDetails/{courseId}
+          const baseInstructorId = data.instructor;
+          // Parse path variants
           const segments = docSnap.ref.path.split("/");
           const dept = segments[1] || "";
-          const year = segments[3] || "";
-          const section = segments[5] || "";
-          const courseId = segments[7] || docSnap.id;
-          const fac = facultyMap.get(instructorId) || {};
-          // Robust field fallbacks across different writers
+          const variantKey = segments[2] || ""; // 'years' or 'year_sem'
+          const year = segments[3] || ""; // IV, III_5, etc.
+          const courseId = (variantKey === 'year_sem') ? (segments[5] || docSnap.id) : (segments[7] || docSnap.id);
+          const facBase = baseInstructorId ? (facultyMap.get(baseInstructorId) || {}) : {};
           const courseCode = data.courseCode || data.code || data.course_code || data.courseCODE || "";
           const courseName = data.courseName || data.title || data.name || data.course_name || "";
-          assignments.push({
-            id: courseId,
-            courseDocPath: docSnap.ref.path,
-            department: dept,
-            year,
-            section,
-            courseCode,
-            courseName,
-            facultyId: instructorId,
-            facultyName: fac.name || "Unknown",
-            facultyDesignation: fac.designation || "",
-            facultyDocPath: fac.path || null,
-          });
-        });
+
+          const pushAssignment = (sectionId, instructorIdOverride) => {
+            const instructorId = instructorIdOverride || baseInstructorId;
+            if (!instructorId) return;
+            const fac = facultyMap.get(instructorId) || facBase || {};
+            assignments.push({
+              id: courseId,
+              courseDocPath: docSnap.ref.path,
+              department: dept,
+              year,
+              section: sectionId,
+              courseCode,
+              courseName,
+              facultyId: instructorId,
+              facultyName: fac.name || "Unknown",
+              facultyDesignation: fac.designation || "",
+              facultyDocPath: fac.path || null,
+            });
+          };
+
+          if (variantKey === 'years') {
+            const sectionFromPath = segments[5] || ""; // A/B/C or ALL_SECTIONS
+            if (sectionFromPath && sectionFromPath !== 'ALL_SECTIONS') {
+              pushAssignment(sectionFromPath);
+            } else {
+              // Expand sections subcollection under the course doc
+              try {
+                const secsSnap = await getDocs(collection(docSnap.ref, 'sections'));
+                if (!secsSnap.empty) {
+                  secsSnap.forEach(secDoc => {
+                    const secData = secDoc.data() || {};
+                    pushAssignment(secDoc.id, secData.instructor || baseInstructorId);
+                  });
+                } else {
+                  // fallback to ALL_SECTIONS single item
+                  pushAssignment('ALL_SECTIONS');
+                }
+              } catch (_) {
+                pushAssignment('ALL_SECTIONS');
+              }
+            }
+          } else if (variantKey === 'year_sem') {
+            // year_sem has no section in path; use sections subcollection
+            try {
+              const secsSnap = await getDocs(collection(docSnap.ref, 'sections'));
+              if (!secsSnap.empty) {
+                secsSnap.forEach(secDoc => {
+                  const secData = secDoc.data() || {};
+                  pushAssignment(secDoc.id, secData.instructor || baseInstructorId);
+                });
+              }
+            } catch (_) {
+              // no sections; skip
+            }
+          }
+        }
 
         setFacultyAssignments(assignments);
         setFilteredAssignments(assignments);

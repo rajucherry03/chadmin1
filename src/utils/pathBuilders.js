@@ -50,6 +50,38 @@ export const courseDocPathYearSem = (department, yearSem, courseId) => {
   return `${coursesCollectionPathYearSem(department, yearSem)}/${courseId}`;
 };
 
+// Helper: list possible semester keys for a given academic year
+export const possibleSemesterKeysForYear = (year) => {
+  const y = (year || '').toString().toUpperCase();
+  switch (y) {
+    case 'I':
+      return ['I_1', 'I_2'];
+    case 'II':
+      return ['II_3', 'II_4'];
+    case 'III':
+      return ['III_5', 'III_6'];
+    case 'IV':
+      return ['IV_7', 'IV_8'];
+    default:
+      return [];
+  }
+};
+
+// Timetables (legacy): timetables/{year}/{section}
+export const timetableCollectionPathLegacy = (year, section) => {
+  const y = (year || '').toString().toUpperCase();
+  const s = (section || '').toString().toUpperCase();
+  return `timetables/${y}/${s}`;
+};
+
+// Timetables (new): timetables/{department}/year_sem/{YY_S}/{section}
+export const timetableCollectionPathYearSem = (department, yearSem, section) => {
+  const dept = department;
+  const ys = (yearSem || '').toString().toUpperCase();
+  const s = (section || '').toString().toUpperCase();
+  return `timetables/${dept}/year_sem/${ys}/${s}`;
+};
+
 // Variants helpers to support legacy structures
 // Generate possible department identifiers, e.g., CSE_DS -> [CSE_DS, CSEDS]
 export const getDepartmentVariants = (department) => {

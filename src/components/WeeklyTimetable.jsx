@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
 import { collection, getDocs, getDoc, doc, updateDoc, deleteDoc, writeBatch, setDoc } from 'firebase/firestore';
 import { FaCalendarAlt, FaSearch, FaEdit, FaTrash, FaSave, FaTimes, FaClock, FaMapMarkerAlt, FaUserTie, FaBook } from 'react-icons/fa';
-import { coursesCollectionPath, courseDocPath, coursesCollectionPathYearSem, courseDocPathYearSem } from '../utils/pathBuilders';
+import { coursesCollectionPath, courseDocPath, coursesCollectionPathYearSem, courseDocPathYearSem, timetableCollectionPathLegacy, timetableCollectionPathYearSem, possibleSemesterKeysForYear } from '../utils/pathBuilders';
 
 const WeeklyTimetable = () => {
   const [department, setDepartment] = useState('CSE_DS');
@@ -15,6 +15,8 @@ const WeeklyTimetable = () => {
   const [loading, setLoading] = useState(false);
   const [editEntry, setEditEntry] = useState(null);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [newEntry, setNewEntry] = useState({ day: 'Monday', periods: [], startTime: '', endTime: '', room: '', courseId: '', facultyId: '' });
 
   const fetchTimetable = async () => {
     if (!department || !year || !section) {
@@ -25,7 +27,9 @@ const WeeklyTimetable = () => {
     setLoading(true);
 
     try {
-      const path = `/timetables/${year}/${section}`;
+      const path = semesterKey
+        ? timetableCollectionPathYearSem(department, semesterKey, section)
+        : timetableCollectionPathLegacy(year, section);
       const timetableSnapshot = await getDocs(collection(db, path));
 
       const timetableData = timetableSnapshot.docs.map((doc) => ({
@@ -85,6 +89,19 @@ const WeeklyTimetable = () => {
             const data = ysSnap.data();
             fetchedCourses[courseId] = data.courseName || data.title || courseId;
             return;
+          }
+        }
+        // If no semKey, try all possible keys for this year
+        if (!semKey) {
+          const possibles = possibleSemesterKeysForYear(year);
+          for (const sk of possibles) {
+            const ysRef = doc(db, courseDocPathYearSem(department, sk.toUpperCase(), courseId));
+            const ysSnap = await getDoc(ysRef);
+            if (ysSnap.exists()) {
+              const data = ysSnap.data();
+              fetchedCourses[courseId] = data.courseName || data.title || courseId;
+              return;
+            }
           }
         }
         // Prefer section-specific course doc (legacy per-section)
@@ -221,7 +238,10 @@ const WeeklyTimetable = () => {
   const handleDelete = async (entryId) => {
     if (window.confirm('Are you sure you want to delete this entry?')) {
       try {
-        await deleteDoc(doc(db, `/timetables/${year}/${section}`, entryId));
+        const path = semesterKey
+          ? timetableCollectionPathYearSem(department, semesterKey, section)
+          : timetableCollectionPathLegacy(year, section);
+        await deleteDoc(doc(db, path, entryId));
         setTimetable((prev) => prev.filter((entry) => entry.id !== entryId));
         alert('Entry deleted successfully.');
       } catch (error) {
@@ -237,7 +257,10 @@ const WeeklyTimetable = () => {
 
     try {
       const { id, ...updatedEntry } = editEntry;
-      await updateDoc(doc(db, `/timetables/${year}/${section}`, id), updatedEntry);
+      const path = semesterKey
+        ? timetableCollectionPathYearSem(department, semesterKey, section)
+        : timetableCollectionPathLegacy(year, section);
+      await updateDoc(doc(db, path, id), updatedEntry);
       setTimetable((prev) =>
         prev.map((entry) => (entry.id === id ? { ...entry, ...updatedEntry } : entry))
       );
@@ -275,6 +298,40 @@ const WeeklyTimetable = () => {
     return colors[periodIndex % colors.length];
   };
 
+  const createTimetableEntry = async (e) => {
+    e.preventDefault();
+    if (!department || !year || !section) {
+      alert('Please select department, year and section.');
+      return;
+    }
+    if (!newEntry.courseId || !newEntry.facultyId || !newEntry.startTime || !newEntry.endTime || !newEntry.day) {
+      alert('Please fill required fields: day, course, faculty, start/end time.');
+      return;
+    }
+    try {
+      const path = semesterKey
+        ? timetableCollectionPathYearSem(department, semesterKey, section)
+        : timetableCollectionPathLegacy(year, section);
+      const entryRef = doc(collection(db, path));
+      const payload = {
+        day: newEntry.day,
+        periods: Array.isArray(newEntry.periods) && newEntry.periods.length > 0 ? newEntry.periods : ['1st'],
+        startTime: newEntry.startTime,
+        endTime: newEntry.endTime,
+        room: newEntry.room || '',
+        courseId: newEntry.courseId,
+        facultyId: newEntry.facultyId,
+      };
+      await setDoc(entryRef, payload);
+      setShowCreateModal(false);
+      setNewEntry({ day: 'Monday', periods: [], startTime: '', endTime: '', room: '', courseId: '', facultyId: '' });
+      await fetchTimetable();
+    } catch (err) {
+      console.error('Failed to create timetable entry', err);
+      alert('Failed to create timetable entry.');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
       <div className="container mx-auto p-6">
@@ -293,7 +350,7 @@ const WeeklyTimetable = () => {
 
         {/* Selection Controls */}
         <div className="bg-white rounded-2xl shadow-lg p-6 mb-8">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">Department</label>
               <select
@@ -373,6 +430,14 @@ const WeeklyTimetable = () => {
                   Fetch Timetable
                 </>
               )}
+            </button>
+            <button
+              onClick={() => setShowCreateModal(true)}
+              disabled={!department || !year || !section}
+              className="px-6 py-3 bg-gradient-to-r from-green-500 to-teal-600 text-white rounded-xl hover:from-green-600 hover:to-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center gap-2 font-semibold shadow-lg hover:shadow-xl"
+            >
+              <FaEdit />
+              Create Entry
             </button>
           </div>
         </div>
@@ -555,6 +620,110 @@ const WeeklyTimetable = () => {
                   <button
                     type="button"
                     onClick={() => setShowEditModal(false)}
+                    className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-all duration-200 font-semibold"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Create Modal */}
+        {showCreateModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-bold text-gray-800">Create Timetable Entry</h2>
+                <button
+                  onClick={() => setShowCreateModal(false)}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors duration-200"
+                >
+                  <FaTimes className="text-gray-500" />
+                </button>
+              </div>
+
+              <form onSubmit={createTimetableEntry} className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Day</label>
+                    <select
+                      value={newEntry.day}
+                      onChange={(e) => setNewEntry((p) => ({ ...p, day: e.target.value }))}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                    >
+                      {['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'].map(d => (
+                        <option key={d} value={d}>{d}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Room</label>
+                    <input
+                      type="text"
+                      value={newEntry.room}
+                      onChange={(e) => setNewEntry((p) => ({ ...p, room: e.target.value }))}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Start Time</label>
+                    <input
+                      type="time"
+                      value={newEntry.startTime}
+                      onChange={(e) => setNewEntry((p) => ({ ...p, startTime: e.target.value }))}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">End Time</label>
+                    <input
+                      type="time"
+                      value={newEntry.endTime}
+                      onChange={(e) => setNewEntry((p) => ({ ...p, endTime: e.target.value }))}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Course</label>
+                    <input
+                      type="text"
+                      placeholder="Enter Course ID"
+                      value={newEntry.courseId}
+                      onChange={(e) => setNewEntry((p) => ({ ...p, courseId: e.target.value }))}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Faculty</label>
+                    <input
+                      type="text"
+                      placeholder="Enter Faculty ID"
+                      value={newEntry.facultyId}
+                      onChange={(e) => setNewEntry((p) => ({ ...p, facultyId: e.target.value }))}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="submit"
+                    className="flex-1 px-4 py-3 bg-gradient-to-r from-green-500 to-teal-600 text-white rounded-xl hover:from-green-600 hover:to-teal-700 transition-all duration-200 font-semibold flex items-center justify-center gap-2"
+                  >
+                    <FaSave />
+                    Create Entry
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowCreateModal(false)}
                     className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-all duration-200 font-semibold"
                   >
                     Cancel

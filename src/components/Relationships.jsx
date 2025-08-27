@@ -25,6 +25,7 @@ function Relationships() {
   const [selectedFaculty, setSelectedFaculty] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
 
   // Normalize student fields from heterogeneous sources
   const normalizeStudent = (raw, id, path) => {
@@ -61,7 +62,8 @@ function Relationships() {
     ];
     const rollNo = rollCandidates.find(v => typeof v === 'string' && v.trim().length > 0) || id;
     const studentName = nameCandidates.find(v => typeof v === 'string' && v.trim().length > 0);
-    return { id, _path: path, rollNo, studentName, ...data };
+    const section = (data.section || data.Section || data.sectionName || data.sec || "").toString().toUpperCase();
+    return { id, _path: path, rollNo, studentName, section, ...data };
   };
 
   // Natural sort by roll number with graceful fallbacks
@@ -85,7 +87,7 @@ function Relationships() {
   }, [students]);
 
   const visibleStudents = useMemo(() => {
-    const q = (searchQuery || "").toString().trim().toLowerCase();
+    const q = (debouncedQuery || "").toString().trim().toLowerCase();
     if (!q) return sortedStudents;
     return sortedStudents.filter((s) => {
       const name = (s.studentName || s.name || s.fullName || "").toString().toLowerCase();
@@ -94,7 +96,24 @@ function Relationships() {
       const roll = (s.rollNo || "").toString().toLowerCase();
       return name.includes(q) || roll.includes(q) || `${first} ${last}`.trim().includes(q);
     });
-  }, [sortedStudents, searchQuery]);
+  }, [sortedStudents, debouncedQuery]);
+
+  // Debounce search input for smoother typing
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(searchQuery), 250);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
+
+  // Derive available sections from student data (fallback to A..F)
+  const derivedSections = useMemo(() => {
+    const set = new Set();
+    (students || []).forEach(s => {
+      const sec = (s.section || selectedSection || "").toString().toUpperCase();
+      if (sec) set.add(sec);
+    });
+    const result = Array.from(set).filter(Boolean).sort();
+    return result.length > 0 ? result : ["A","B","C","D","E","F"];
+  }, [students, selectedSection]);
 
   // Fetch faculty for selected department
   useEffect(() => {
@@ -280,26 +299,25 @@ function Relationships() {
       const studentsBySection = {
         [normalizedSection]: studentIdsToAssign
       };
-      if (!useYearSem) {
-        // Backward path: maintain per-section doc
-        batch.set(
-          sectionCourseRef,
-          {
-            courseCode: selectedCourseMeta.courseCode || selectedCourseMeta.code || undefined,
-            courseName: selectedCourseMeta.courseName || selectedCourseMeta.title || selectedCourseMeta.name || undefined,
-            instructor: selectedFaculty,
-            students: deleteField(),
-            studentsBySection,
-            masterCoursePath: selectedCourseMeta._path || null,
-          },
-          { merge: true }
-        );
-      }
+      // Always maintain a per-section course document for easy reads and legacy compatibility
+      batch.set(
+        sectionCourseRef,
+        {
+          courseCode: selectedCourseMeta.courseCode || selectedCourseMeta.code || undefined,
+          courseName: selectedCourseMeta.courseName || selectedCourseMeta.title || selectedCourseMeta.name || undefined,
+          instructor: selectedFaculty,
+          students: deleteField(),
+          studentsBySection,
+          masterCoursePath: selectedCourseMeta._path || (useYearSem ? courseDocPathYearSem(selectedDepartment, selectedSemester, selectedCourse) : null),
+        },
+        { merge: true }
+      );
 
       // Additionally, write a normalized per-section sub-document under the master ALL_SECTIONS course doc for scalability
       // For new structure or existing master with path, store link under master course doc
-      if (selectedCourseMeta && selectedCourseMeta._path) {
-        const masterSectionsPath = `${selectedCourseMeta._path}/sections/${normalizedSection}`;
+      if (selectedCourseMeta && (selectedCourseMeta._path || useYearSem)) {
+        const masterPath = selectedCourseMeta._path || courseDocPathYearSem(selectedDepartment, selectedSemester, selectedCourse);
+        const masterSectionsPath = `${masterPath}/sections/${normalizedSection}`;
         const masterSectionRef = doc(db, masterSectionsPath);
         batch.set(
           masterSectionRef,
@@ -363,6 +381,7 @@ function Relationships() {
                 className="w-full p-3 border border-gray-300 rounded-md"
               >
                 <option value="">-- Select a Year --</option>
+                <option value="I">I</option>
                 <option value="IV">IV</option>
                 <option value="III">III</option>
                 <option value="II">II</option>
@@ -396,10 +415,9 @@ function Relationships() {
                 className="w-full p-3 border border-gray-300 rounded-md"
               >
                 <option value="">-- Select a Section --</option>
-                <option value="ALL_SECTIONS">ALL_SECTIONS</option>
-                <option value="A">A</option>
-                <option value="B">B</option>
-                <option value="C">C</option>
+                {derivedSections.map(sec => (
+                  <option key={sec} value={sec}>{sec}</option>
+                ))}
               </select>
             </div>
 
@@ -428,7 +446,7 @@ function Relationships() {
                 </div>
 
                 <div className="overflow-x-auto border border-gray-200 rounded-md">
-                  <table className="min-w-full text-sm">
+                  <table className="min-w-full text-sm table-auto">
                     <thead className="bg-gray-50 text-gray-700">
                       <tr>
                         <th className="p-2 w-10 text-center">Sel</th>
