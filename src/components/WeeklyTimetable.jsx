@@ -18,6 +18,15 @@ const WeeklyTimetable = () => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newEntry, setNewEntry] = useState({ day: 'Monday', periods: [], startTime: '', endTime: '', room: '', courseId: '', facultyId: '' });
 
+  const formatTo12h = (hhmm) => {
+    if (!hhmm) return '';
+    const [h, m] = hhmm.split(':').map((n) => parseInt(n, 10));
+    if (Number.isNaN(h) || Number.isNaN(m)) return hhmm;
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const hour = ((h + 11) % 12) + 1;
+    return `${hour}:${`${m}`.padStart(2,'0')} ${ampm}`;
+  };
+
   const fetchTimetable = async () => {
     if (!department || !year || !section) {
       alert('Please select both year and section.');
@@ -37,7 +46,6 @@ const WeeklyTimetable = () => {
         ...doc.data(),
       }));
 
-      console.log('Fetched Timetable:', timetableData);
       setTimetable(timetableData);
 
       const courseIds = new Set(timetableData.map((entry) => entry.courseId));
@@ -59,9 +67,6 @@ const WeeklyTimetable = () => {
           }
         })
       );
-
-      console.log('Fetched Courses:', fetchedCourses);
-      console.log('Fetched Faculties:', fetchedFaculties);
 
       setCourseMap(fetchedCourses);
       setFacultyMap(fetchedFaculties);
@@ -152,6 +157,96 @@ const WeeklyTimetable = () => {
     return `${y}-${m}-${d}`;
   };
 
+  const upsertAttendanceForEntry = async (entry) => {
+    const weekDates = getWeekDates();
+    const dateObj = weekDates[entry.day];
+    if (!dateObj) return;
+    const dateKey = isoDate(dateObj);
+
+    let courseName = courseMap[entry.courseId] || entry.courseId;
+    try {
+      if (semesterKey) {
+        const ysRef = doc(db, courseDocPathYearSem(department, semesterKey.toUpperCase(), entry.courseId));
+        const ysSnap = await getDoc(ysRef);
+        if (ysSnap.exists()) {
+          const data = ysSnap.data();
+          courseName = data.courseName || data.title || entry.courseId;
+        }
+      } else {
+        const secRef = doc(db, courseDocPath(department, year, section.toUpperCase(), entry.courseId));
+        const secSnap = await getDoc(secRef);
+        if (secSnap.exists()) {
+          const data = secSnap.data();
+          courseName = data.courseName || data.title || entry.courseId;
+        }
+      }
+    } catch (_) {}
+
+    // Try to get students by section from course doc
+    let studentIds = [];
+    try {
+      const secCourseRef = semesterKey
+        ? doc(db, courseDocPathYearSem(department, semesterKey.toUpperCase(), entry.courseId))
+        : doc(db, courseDocPath(department, year, section.toUpperCase(), entry.courseId));
+      const scSnap = await getDoc(secCourseRef);
+      if (scSnap.exists()) {
+        const d = scSnap.data();
+        const bySec = d.studentsBySection || {};
+        const list = bySec[section.toUpperCase()];
+        if (Array.isArray(list)) studentIds = list;
+      }
+    } catch (_) {}
+
+    const attDocPath = `attendance/${department}_${year}_${section.toUpperCase()}/records/${dateKey}_${entry.courseId}`;
+    const attRef = doc(db, attDocPath);
+    await setDoc(attRef, {
+      department,
+      year,
+      section: section.toUpperCase(),
+      date: dateKey,
+      courseId: entry.courseId,
+      courseName,
+      facultyId: entry.facultyId,
+      facultyName: facultyMap[entry.facultyId] || entry.facultyId,
+      startTime: entry.startTime || null,
+      endTime: entry.endTime || null,
+      periods: entry.periods || [],
+      room: entry.room || null,
+      statusByStudent: Object.fromEntries((studentIds || []).map((id) => [id, 'pending'])),
+      createdAt: new Date().toISOString(),
+    }, { merge: true });
+
+    // Small indexes for portal reads
+    const batch = writeBatch(db);
+    if (entry.facultyId) {
+      const facIdxRef = doc(db, `faculty/${department}/members/${entry.facultyId}/attendance/${dateKey}_${entry.courseId}`);
+      batch.set(facIdxRef, {
+        department, year, section: section.toUpperCase(), date: dateKey, courseId: entry.courseId, courseName,
+        periods: entry.periods || [], room: entry.room || null, attendanceDocPath: attDocPath, createdAt: new Date().toISOString(),
+      }, { merge: true });
+    }
+    (studentIds || []).forEach((sid) => {
+      const stuIdxRef = doc(db, `students_attendance/${sid}/records/${dateKey}_${entry.courseId}`);
+      batch.set(stuIdxRef, {
+        department, year, section: section.toUpperCase(), date: dateKey, courseId: entry.courseId, courseName,
+        facultyId: entry.facultyId, periods: entry.periods || [], room: entry.room || null, attendanceDocPath: attDocPath, status: 'pending', createdAt: new Date().toISOString(),
+      }, { merge: true });
+    });
+    try { await batch.commit(); } catch (_) {}
+  };
+
+  const deleteAttendanceForEntry = async (entry) => {
+    try {
+      const weekDates = getWeekDates();
+      const dateObj = weekDates[entry.day];
+      if (!dateObj) return;
+      const dateKey = isoDate(dateObj);
+      const attRef = doc(db, `attendance/${department}_${year}_${section.toUpperCase()}/records/${dateKey}_${entry.courseId}`);
+      await deleteDoc(attRef);
+      // Indexes are left as historical pointers; optionally remove if desired.
+    } catch (_) {}
+  };
+
   const ensureAttendanceForCurrentWeek = async (entries, department, year, section, courseNames, facultyNames, semKey) => {
     if (!Array.isArray(entries) || entries.length === 0) return;
     const weekDates = getWeekDates();
@@ -190,7 +285,7 @@ const WeeklyTimetable = () => {
       } catch (_) {}
 
       // Attendance doc path
-      const attDocRef = doc(db, `attendance/${department}_${year}_${section.toUpperCase()}/${dateKey}_${courseId}`);
+      const attDocRef = doc(db, `attendance/${department}_${year}_${section.toUpperCase()}/records/${dateKey}_${courseId}`);
       batch.set(attDocRef, {
         department,
         year,
@@ -236,13 +331,15 @@ const WeeklyTimetable = () => {
   };
 
   const handleDelete = async (entryId) => {
+    const entry = timetable.find((e) => e.id === entryId);
     if (window.confirm('Are you sure you want to delete this entry?')) {
       try {
         const path = semesterKey
           ? timetableCollectionPathYearSem(department, semesterKey, section)
           : timetableCollectionPathLegacy(year, section);
         await deleteDoc(doc(db, path, entryId));
-        setTimetable((prev) => prev.filter((entry) => entry.id !== entryId));
+        setTimetable((prev) => prev.filter((e) => e.id !== entryId));
+        await deleteAttendanceForEntry(entry || {});
         alert('Entry deleted successfully.');
       } catch (error) {
         console.error('Error deleting entry:', error.message);
@@ -264,6 +361,7 @@ const WeeklyTimetable = () => {
       setTimetable((prev) =>
         prev.map((entry) => (entry.id === id ? { ...entry, ...updatedEntry } : entry))
       );
+      await upsertAttendanceForEntry(updatedEntry);
       alert('Entry updated successfully.');
       setShowEditModal(false);
       setEditEntry(null);
@@ -323,6 +421,7 @@ const WeeklyTimetable = () => {
         facultyId: newEntry.facultyId,
       };
       await setDoc(entryRef, payload);
+      await upsertAttendanceForEntry(payload);
       setShowCreateModal(false);
       setNewEntry({ day: 'Monday', periods: [], startTime: '', endTime: '', room: '', courseId: '', facultyId: '' });
       await fetchTimetable();
@@ -453,7 +552,7 @@ const WeeklyTimetable = () => {
             </div>
             <div>
               <h1 className="text-3xl font-bold text-gray-800">Weekly Timetable</h1>
-              <p className="text-gray-600">Manage and view class schedules</p>
+              <p className="text-gray-600">Manage and view class schedules (12-hour times)</p>
             </div>
           </div>
         </div>
@@ -626,7 +725,7 @@ const WeeklyTimetable = () => {
                                   <div className="flex items-center gap-2">
                                     <FaClock className="text-orange-500 text-sm" />
                                     <span className="text-gray-600 text-sm">
-                                      {entry.startTime} - {entry.endTime}
+                                      {formatTo12h(entry.startTime)} - {formatTo12h(entry.endTime)}
                                     </span>
                                   </div>
                                   

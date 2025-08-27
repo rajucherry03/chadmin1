@@ -400,7 +400,7 @@ const CreateTimetable = () => {
             } catch (_) {}
 
             const dateKey = isoDate(dateObj);
-            const attDocPath = `attendance/${department}_${year}_${normalizedSection}/${dateKey}_${entry.courseId}`;
+            const attDocPath = `attendance/${department}_${year}_${normalizedSection}/records/${dateKey}_${entry.courseId}`;
             const attRef = doc(db, attDocPath);
             await setDoc(attRef, {
               department,

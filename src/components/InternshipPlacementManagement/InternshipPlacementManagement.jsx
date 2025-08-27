@@ -114,7 +114,7 @@ const InternshipPlacementManagement = () => {
     );
 
     const unsubscribeApplications = onSnapshot(
-      collection(db, 'applications'),
+      collection(db, 'internship_applications'),
       (snapshot) => {
         const applicationsData = [];
         snapshot.forEach((doc) => {
@@ -294,6 +294,24 @@ const InternshipPlacementManagement = () => {
     }
   ];
 
+  // UI helpers
+  const getTabById = (id) => tabs.find(t => t.id === id);
+  const getLabelFor = (idOrComposite) => {
+    if (!idOrComposite) return '';
+    const [rootId, subId] = idOrComposite.split('-');
+    const root = getTabById(rootId);
+    if (!root) return '';
+    if (!subId) return root.label;
+    const sub = root.subTabs?.find(s => s.id === subId);
+    return sub ? sub.label : root.label;
+  };
+  const getSubTabsForActive = () => {
+    const [rootId] = activeTab.split('-');
+    const root = getTabById(rootId);
+    return root?.subTabs || [];
+  };
+  const isInSubSection = () => activeTab.includes('-');
+
   const renderComponent = () => {
     const commonProps = {
       userRole,
@@ -369,69 +387,76 @@ const InternshipPlacementManagement = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="bg-white shadow-sm border-b">
+      <div className="sticky top-0 z-30 bg-gradient-to-r from-blue-50 to-indigo-50 border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
-            <div className="flex items-center space-x-4">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between py-4 gap-3">
+            <div className="flex items-center justify-between md:justify-start">
               <div className="flex items-center space-x-2">
-                <FontAwesomeIcon icon={faBriefcase} className="text-blue-600 text-2xl" />
-                <h1 className="text-2xl font-bold text-gray-900">
-                  Internship & Placement Management
-                </h1>
+                <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-white/70 border border-blue-100">
+                  <FontAwesomeIcon icon={faBriefcase} className="text-blue-600 text-lg" />
+                </span>
+                <div>
+                  <h1 className="text-xl md:text-2xl font-semibold text-gray-900 leading-tight">Internship & Placement Management</h1>
+                  <p className="text-xs text-gray-500 hidden sm:block">Manage internships, placements, companies and applications</p>
+                </div>
               </div>
-              <div className="flex items-center space-x-2 text-sm text-gray-500">
-                <FontAwesomeIcon icon={faUserShield} />
-                <span className="capitalize">{userRole}</span>
-              </div>
+              {/* Mobile menu button */}
+              <button
+                onClick={() => setShowMobileMenu(!showMobileMenu)}
+                className="md:hidden ml-3 p-2 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-white/60"
+                aria-label="Toggle menu"
+              >
+                <FontAwesomeIcon icon={faList} className="text-lg" />
+              </button>
             </div>
-            
-            <div className="flex items-center space-x-4">
+
+            <div className="flex items-center gap-2 md:gap-3">
               {/* Search */}
               <div className="relative hidden md:block">
                 <input
                   type="text"
-                  placeholder="Search..."
+                  placeholder="Search internships, companies, students"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-64 pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-64 pl-10 pr-4 py-2 rounded-full border border-blue-100 bg-white/70 backdrop-blur focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400"
                 />
                 <FontAwesomeIcon 
                   icon={faSearch} 
-                  className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" 
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" 
                 />
               </div>
 
+              {/* Refresh */}
+              <button
+                onClick={() => window.location.reload()}
+                className="hidden md:inline-flex items-center gap-2 px-3 py-2 rounded-full bg-blue-600 text-white text-sm hover:bg-blue-700 transition-colors"
+                title="Refresh data"
+              >
+                <FontAwesomeIcon icon={faRefresh} className="text-xs" />
+                Refresh
+              </button>
+
               {/* Notifications */}
-              <div className="relative">
-                <button className="p-2 text-gray-400 hover:text-gray-600 relative">
-                  <FontAwesomeIcon icon={faBell} className="text-xl" />
-                  {notifications.filter(n => !n.read).length > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-                      {notifications.filter(n => !n.read).length}
-                    </span>
-                  )}
-                </button>
-              </div>
-              
+              <button className="relative h-9 w-9 inline-flex items-center justify-center rounded-full bg-white/70 border border-blue-100 text-gray-600 hover:text-gray-800">
+                <FontAwesomeIcon icon={faBell} className="text-base" />
+                {notifications.filter(n => !n.read).length > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] rounded-full h-5 w-5 flex items-center justify-center">
+                    {notifications.filter(n => !n.read).length}
+                  </span>
+                )}
+              </button>
+
               {/* Role Selector */}
               <select
                 value={userRole}
                 onChange={(e) => setUserRole(e.target.value)}
-                className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="px-3 py-2 rounded-full bg-white/70 border border-blue-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="admin">Admin</option>
                 <option value="faculty">Faculty</option>
                 <option value="student">Student</option>
                 <option value="company">Company</option>
               </select>
-
-              {/* Mobile menu button */}
-              <button
-                onClick={() => setShowMobileMenu(!showMobileMenu)}
-                className="md:hidden p-2 text-gray-400 hover:text-gray-600"
-              >
-                <FontAwesomeIcon icon={faList} className="text-xl" />
-              </button>
             </div>
           </div>
         </div>
@@ -449,10 +474,10 @@ const InternshipPlacementManagement = () => {
                   <div key={tab.id}>
                     <button
                       onClick={() => setActiveTab(tab.id)}
-                      className={`w-full flex items-center justify-between px-4 py-3 text-left rounded-lg transition-colors ${
+                      className={`w-full flex items-center justify-between px-3 py-3 text-left rounded-md transition-colors ${
                         activeTab === tab.id
-                          ? 'bg-blue-100 text-blue-700 border-r-2 border-blue-500'
-                          : 'text-gray-700 hover:bg-gray-100'
+                          ? 'bg-white shadow-sm border border-blue-200 text-blue-700'
+                          : 'text-gray-700 hover:bg-white hover:shadow-sm border border-transparent'
                       }`}
                     >
                       <div className="flex items-center space-x-3">
@@ -472,18 +497,19 @@ const InternshipPlacementManagement = () => {
                     
                     {/* Sub-tabs */}
                     {tab.subTabs && activeTab === tab.id && (
-                      <div className="ml-8 mt-2 space-y-1">
+                      <div className="ml-4 mt-2 space-y-1">
                         {tab.subTabs.map((subTab) => {
-                          if (!subTab.roles?.includes(userRole)) return null;
+                          // Show all sub-tabs unless a roles array is explicitly provided
+                          if (Array.isArray(subTab.roles) && !subTab.roles.includes(userRole)) return null;
                           
                           return (
                             <button
                               key={subTab.id}
                               onClick={() => setActiveTab(`${tab.id}-${subTab.id}`)}
-                              className={`w-full flex items-center space-x-3 px-4 py-2 text-left rounded-lg transition-colors text-sm ${
+                              className={`w-full flex items-center space-x-3 px-3 py-2 text-left rounded-md transition-colors text-sm ${
                                 activeTab === `${tab.id}-${subTab.id}`
-                                  ? 'bg-blue-50 text-blue-600'
-                                  : 'text-gray-600 hover:bg-gray-50'
+                                  ? 'bg-blue-50 text-blue-700'
+                                  : 'text-gray-600 hover:bg-white hover:shadow-sm'
                               }`}
                             >
                               <FontAwesomeIcon icon={subTab.icon} className="w-4 h-4" />
@@ -504,13 +530,69 @@ const InternshipPlacementManagement = () => {
 
           {/* Main Content */}
           <div className="flex-1">
-            <div className="bg-white rounded-lg shadow-sm border">
+            {/* Breadcrumbs and quick sub-nav */}
+            <div className="mb-3">
+              <nav className="text-sm text-gray-500">
+                <ol className="flex items-center space-x-2">
+                  <li>
+                    <button onClick={() => setActiveTab('dashboard')} className="hover:text-gray-700">Dashboard</button>
+                  </li>
+                  <li className="text-gray-300">/</li>
+                  <li className="text-gray-700 font-medium capitalize">{getLabelFor(activeTab.split('-')[0])}</li>
+                  {isInSubSection() && (
+                    <>
+                      <li className="text-gray-300">/</li>
+                      <li className="text-gray-700 capitalize">{getLabelFor(activeTab)}</li>
+                    </>
+                  )}
+                </ol>
+              </nav>
+              {getSubTabsForActive().length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {getSubTabsForActive().map((s) => (
+                    <button
+                      key={s.id}
+                      onClick={() => setActiveTab(`${activeTab.split('-')[0]}-${s.id}`)}
+                      className={`px-3 py-1.5 rounded-full text-sm border ${
+                        activeTab === `${activeTab.split('-')[0]}-${s.id}`
+                          ? 'bg-blue-600 text-white border-blue-600'
+                          : 'bg-white text-gray-700 border-gray-200 hover:border-blue-300'
+                      }`}
+                      title={s.description}
+                    >
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-2 md:p-4">
               {error && (
                 <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
                   <div className="flex items-center space-x-2">
                     <FontAwesomeIcon icon={faExclamationTriangle} className="text-red-500" />
                     <span className="text-red-700">{error}</span>
                   </div>
+                </div>
+              )}
+              {/* Helpful empty-state guidance */}
+              {activeTab === 'internships-listings' && internships.length === 0 && (
+                <div className="mb-4 rounded-lg border border-blue-100 bg-blue-50 p-4 text-blue-800">
+                  <div className="font-medium mb-1">No internships yet</div>
+                  <p className="text-sm">Use the Add Internship button to create your first listing. You can link a company, set deadline and required skills.</p>
+                </div>
+              )}
+              {activeTab === 'internships-applications' && applications.length === 0 && (
+                <div className="mb-4 rounded-lg border border-amber-100 bg-amber-50 p-4 text-amber-800">
+                  <div className="font-medium mb-1">No applications found</div>
+                  <p className="text-sm">Once students apply to internships, they will appear here for review and status updates.</p>
+                </div>
+              )}
+              {activeTab === 'placements-company-registration' && companies.length === 0 && (
+                <div className="mb-4 rounded-lg border border-emerald-100 bg-emerald-50 p-4 text-emerald-800">
+                  <div className="font-medium mb-1">No companies registered</div>
+                  <p className="text-sm">Add a company to start posting internships and jobs. Include a contact person and basic details.</p>
                 </div>
               )}
               {renderComponent()}

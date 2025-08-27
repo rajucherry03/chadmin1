@@ -117,7 +117,7 @@ const StudentApplications = ({
         updatedBy: userRole
       };
       
-      await updateDoc(doc(db, 'applications', selectedApplication.id), updateData);
+      await updateDoc(doc(db, 'internship_applications', selectedApplication.id), updateData);
       
       setShowEditModal(false);
       setSelectedApplication(null);
@@ -137,7 +137,7 @@ const StudentApplications = ({
   const handleDelete = async (application) => {
     if (window.confirm('Are you sure you want to delete this application?')) {
       try {
-        await deleteDoc(doc(db, 'applications', application.id));
+        await deleteDoc(doc(db, 'internship_applications', application.id));
       } catch (error) {
         console.error('Error deleting application:', error);
         alert('Failed to delete application. Please try again.');
