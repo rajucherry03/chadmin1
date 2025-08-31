@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import "./StudentManagement.css";
 import {
   faUserGraduate, faPlus, faUpload, faIdCard, faMoneyBillWave,
   faGraduationCap, faHome, faBus, faEnvelope, faFileAlt,
@@ -397,26 +396,26 @@ const StudentManagement = () => {
         return (
           <div className="h-full flex flex-col space-y-8">
             {/* Compact Quick Actions */}
-            <div className="bg-white rounded-lg shadow-sm p-6 flex-shrink-0">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm dark:shadow-gray-900/20 p-6 flex-shrink-0 border border-gray-200 dark:border-gray-700">
               <div className="flex items-center space-x-3 mb-6">
                 <div className="bg-gradient-to-r from-blue-500 to-purple-600 p-2 rounded-lg">
                   <FontAwesomeIcon icon={faBolt} className="text-white text-lg" />
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900">Quick Actions</h3>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Quick Actions</h3>
               </div>
               <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-8 gap-4 quick-actions-grid">
                 {quickActions.map((action) => (
                   <button
                     key={action.id}
                     onClick={action.action}
-                    className="group relative overflow-hidden rounded-lg border border-gray-200 bg-white p-4 hover:border-gray-300 hover:shadow-lg transition-all duration-200 text-left transform hover:-translate-y-1 flex flex-col items-center justify-center"
+                    className="group relative overflow-hidden rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 p-4 hover:border-gray-300 dark:hover:border-gray-500 hover:shadow-lg dark:hover:shadow-gray-900/30 transition-all duration-200 text-left transform hover:-translate-y-1 flex flex-col items-center justify-center"
                   >
                     <div className={`${action.color} text-white p-3 rounded-lg group-hover:scale-110 transition-transform duration-200 shadow-sm mb-3`}>
                       <FontAwesomeIcon icon={action.icon} className="text-lg" />
                     </div>
                     <div className="text-center w-full">
-                      <h4 className="font-semibold text-gray-900 text-sm group-hover:text-blue-600 transition-colors leading-tight mb-1">{action.title}</h4>
-                      <p className="text-xs text-gray-600 leading-tight">{action.description}</p>
+                      <h4 className="font-semibold text-gray-900 dark:text-white text-sm group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors leading-tight mb-1">{action.title}</h4>
+                      <p className="text-xs text-gray-600 dark:text-gray-400 leading-tight">{action.description}</p>
                     </div>
                   </button>
                 ))}
@@ -499,72 +498,72 @@ const StudentManagement = () => {
             </div>
 
             {/* Compact Recent Students */}
-            <div className="bg-white rounded-lg shadow-sm overflow-hidden flex-1 min-h-0">
-              <div className="bg-gradient-to-r from-gray-50 to-gray-100 px-4 py-3 border-b border-gray-200">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm dark:shadow-gray-900/20 overflow-hidden flex-1 min-h-0 border border-gray-200 dark:border-gray-700">
+              <div className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 px-4 py-3 border-b border-gray-200 dark:border-gray-600">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
                     <div className="bg-blue-100 p-1.5 rounded-lg">
                       <FontAwesomeIcon icon={faUserGraduate} className="text-blue-600 text-sm" />
                     </div>
-                    <h3 className="text-sm font-semibold text-gray-900">Recent Students</h3>
+                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Recent Students</h3>
                   </div>
-                  <button className="text-blue-600 hover:text-blue-800 text-xs font-medium bg-blue-50 px-2 py-1 rounded hover:bg-blue-100 transition-colors">
+                  <button className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-xs font-medium bg-blue-50 dark:bg-blue-900/30 px-2 py-1 rounded hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors">
                     View All
                   </button>
                 </div>
               </div>
               <div className="overflow-hidden h-full student-table-container">
                 {sortedStudents.length === 0 ? (
-                  <div className="p-3 text-center text-gray-600 text-xs">No students found. Adjust filters or add a new student.</div>
+                  <div className="p-3 text-center text-gray-600 dark:text-gray-400 text-xs">No students found. Adjust filters or add a new student.</div>
                 ) : (
                   <>
                     {/* Desktop table */}
-                    <table className="w-full divide-y divide-gray-200 hidden lg:table h-full">
-                      <thead className="bg-gray-50">
+                    <table className="w-full divide-y divide-gray-200 dark:divide-gray-700 hidden lg:table h-full">
+                      <thead className="bg-gray-50 dark:bg-gray-700">
                         <tr>
-                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student</th>
-                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Roll No</th>
-                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
-                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Year</th>
-                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Student</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Roll No</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Department</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Year</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
                         </tr>
                       </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
+                      <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                         {paginatedStudents.map((student) => (
-                          <tr key={student.id} className="hover:bg-gray-50">
+                          <tr key={student.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                             <td className="px-3 py-2 whitespace-nowrap">
                               <div className="flex items-center">
                                 <div className="flex-shrink-0 h-8 w-8">
-                                  <div className="h-8 w-8 rounded-full bg-gray-300 flex items-center justify-center">
-                                    <FontAwesomeIcon icon={faUserGraduate} className="text-gray-600 text-sm" />
+                                  <div className="h-8 w-8 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center">
+                                    <FontAwesomeIcon icon={faUserGraduate} className="text-gray-600 dark:text-gray-400 text-sm" />
                                   </div>
                                 </div>
                                 <div className="ml-3">
-                                  <div className="text-sm font-medium text-gray-900 truncate max-w-[140px]">
+                                  <div className="text-sm font-medium text-gray-900 dark:text-white truncate max-w-[140px]">
                                     {student.name || `${student.firstName || ''} ${student.lastName || ''}`.trim()}
                                   </div>
-                                  <div className="text-xs text-gray-500 truncate max-w-[140px]">{student.email}</div>
+                                  <div className="text-xs text-gray-500 dark:text-gray-400 truncate max-w-[140px]">{student.email}</div>
                                 </div>
                               </div>
                             </td>
-                            <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900">{student.rollNo}</td>
-                            <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 truncate max-w-[100px]">{student.department}</td>
-                            <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900">{student.year}</td>
+                            <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 dark:text-white">{student.rollNo}</td>
+                            <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 dark:text-white truncate max-w-[100px]">{student.department}</td>
+                            <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 dark:text-white">{student.year}</td>
                             <td className="px-3 py-2 whitespace-nowrap">
                               <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                                student.status === 'active' ? 'bg-green-100 text-green-800' :
-                                student.status === 'inactive' ? 'bg-red-100 text-red-800' :
-                                'bg-gray-100 text-gray-800'
+                                student.status === 'active' ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400' :
+                                student.status === 'inactive' ? 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400' :
+                                'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300'
                               }`}>
                                 {student.status}
                               </span>
                             </td>
                             <td className="px-3 py-2 whitespace-nowrap text-sm font-medium">
                               <div className="flex space-x-2">
-                                <button onClick={() => openEditModal(student)} className="text-blue-600 hover:text-blue-900 p-1" title="View"><FontAwesomeIcon icon={faEye} className="text-sm" /></button>
-                                <button onClick={() => openEditModal(student)} className="text-green-600 hover:text-green-900 p-1" title="Edit"><FontAwesomeIcon icon={faEdit} className="text-sm" /></button>
-                                <button onClick={() => removeStudent(student)} className="text-red-600 hover:text-red-900 p-1" title="Delete"><FontAwesomeIcon icon={faTrash} className="text-sm" /></button>
+                                <button onClick={() => openEditModal(student)} className="text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300 p-1" title="View"><FontAwesomeIcon icon={faEye} className="text-sm" /></button>
+                                <button onClick={() => openEditModal(student)} className="text-green-600 dark:text-green-400 hover:text-green-900 dark:hover:text-green-300 p-1" title="Edit"><FontAwesomeIcon icon={faEdit} className="text-sm" /></button>
+                                <button onClick={() => removeStudent(student)} className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300 p-1" title="Delete"><FontAwesomeIcon icon={faTrash} className="text-sm" /></button>
                               </div>
                             </td>
                           </tr>
@@ -573,19 +572,19 @@ const StudentManagement = () => {
                     </table>
 
                     {/* Tablet table */}
-                    <table className="w-full divide-y divide-gray-200 hidden sm:table lg:hidden h-full">
-                      <thead className="bg-gray-50">
+                    <table className="w-full divide-y divide-gray-200 dark:divide-gray-700 hidden sm:table lg:hidden h-full">
+                      <thead className="bg-gray-50 dark:bg-gray-700">
                         <tr>
-                          <th className="px-1.5 py-1.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student</th>
-                          <th className="px-1.5 py-1.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Roll No</th>
-                          <th className="px-1.5 py-1.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
-                          <th className="px-1.5 py-1.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                          <th className="px-1.5 py-1.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                          <th className="px-1.5 py-1.5 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Student</th>
+                          <th className="px-1.5 py-1.5 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Roll No</th>
+                          <th className="px-1.5 py-1.5 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Department</th>
+                          <th className="px-1.5 py-1.5 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
+                          <th className="px-1.5 py-1.5 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
                         </tr>
                       </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
+                      <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                         {paginatedStudents.map((student) => (
-                          <tr key={student.id} className="hover:bg-gray-50">
+                          <tr key={student.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                             <td className="px-1.5 py-1.5 whitespace-nowrap">
                               <div className="flex items-center">
                                 <div className="flex-shrink-0 h-5 w-5">
@@ -625,7 +624,7 @@ const StudentManagement = () => {
                     </table>
 
                     {/* Mobile list */}
-                    <div className="sm:hidden divide-y divide-gray-200 h-full overflow-y-auto">
+                    <div className="sm:hidden divide-y divide-gray-200 dark:divide-gray-700 h-full overflow-y-auto">
                       {paginatedStudents.map((student) => (
                         <div key={student.id} className="p-2 flex items-start gap-2">
                           <div className="h-6 w-6 rounded-full bg-gray-300 flex items-center justify-center flex-shrink-0">
@@ -651,9 +650,9 @@ const StudentManagement = () => {
                             </p>
                             <p className="text-xs text-gray-500 truncate mb-1">{student.email}</p>
                             <div className="flex gap-1 text-blue-600">
-                              <button onClick={() => openEditModal(student)} className="text-xs bg-blue-50 px-1.5 py-0.5 rounded">View</button>
-                              <button onClick={() => openEditModal(student)} className="text-xs bg-green-50 px-1.5 py-0.5 rounded text-green-600">Edit</button>
-                              <button onClick={() => removeStudent(student)} className="text-xs bg-red-50 px-1.5 py-0.5 rounded text-red-600">Delete</button>
+                              <button onClick={() => openEditModal(student)} className="text-xs bg-blue-50 dark:bg-blue-900/30 px-1.5 py-0.5 rounded text-blue-600 dark:text-blue-400">View</button>
+                              <button onClick={() => openEditModal(student)} className="text-xs bg-green-50 dark:bg-green-900/30 px-1.5 py-0.5 rounded text-green-600 dark:text-green-400">Edit</button>
+                              <button onClick={() => removeStudent(student)} className="text-xs bg-red-50 dark:bg-red-900/30 px-1.5 py-0.5 rounded text-red-600 dark:text-red-400">Delete</button>
                             </div>
                           </div>
                         </div>
@@ -673,8 +672,8 @@ const StudentManagement = () => {
                           disabled={currentPage === 1}
                           className={`px-3 py-1 rounded border text-sm ${
                             currentPage === 1 
-                              ? 'text-gray-400 border-gray-200 cursor-not-allowed' 
-                              : 'text-gray-700 border-gray-300 hover:bg-gray-50'
+                              ? 'text-gray-400 dark:text-gray-500 border-gray-200 dark:border-gray-600 cursor-not-allowed' 
+                              : 'text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
                           }`}
                         >
                           Previous
@@ -688,8 +687,8 @@ const StudentManagement = () => {
                                 onClick={() => setCurrentPage(pageNum)}
                                 className={`px-3 py-1 rounded text-sm ${
                                   currentPage === pageNum
-                                    ? 'bg-blue-500 text-white'
-                                    : 'text-gray-700 hover:bg-gray-100'
+                                    ? 'bg-blue-500 dark:bg-blue-600 text-white'
+                                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
                                 }`}
                               >
                                 {pageNum}
@@ -702,8 +701,8 @@ const StudentManagement = () => {
                           disabled={currentPage === totalPages}
                           className={`px-3 py-1 rounded border text-sm ${
                             currentPage === totalPages 
-                              ? 'text-gray-400 border-gray-200 cursor-not-allowed' 
-                              : 'text-gray-700 border-gray-300 hover:bg-gray-50'
+                              ? 'text-gray-400 dark:text-gray-500 border-gray-200 dark:border-gray-600 cursor-not-allowed' 
+                              : 'text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
                           }`}
                         >
                           Next
@@ -766,19 +765,19 @@ const StudentManagement = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-500"></div>
+      <div className="flex items-center justify-center h-64 bg-gray-50 dark:bg-gray-900">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-500 dark:border-blue-400"></div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="bg-white rounded-lg shadow p-6">
-        <p className="text-red-600 font-medium mb-4">{error}</p>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-900/20 p-6 border border-gray-200 dark:border-gray-700">
+        <p className="text-red-600 dark:text-red-400 font-medium mb-4">{error}</p>
         <button
           onClick={() => { setLoading(true); setError(""); }}
-          className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg"
+          className="bg-blue-500 dark:bg-blue-600 hover:bg-blue-600 dark:hover:bg-blue-700 text-white px-4 py-2 rounded-lg"
         >
           Retry
         </button>
@@ -787,7 +786,7 @@ const StudentManagement = () => {
   }
 
   return (
-    <div className="min-h-screen flex flex-col overflow-y-auto student-management-container">
+    <div className="min-h-screen flex flex-col overflow-y-auto student-management-container text-gray-900 dark:text-gray-100 transition-all duration-300">
       {/* Compact Header */}
       <div className="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-lg shadow-sm p-4 text-white flex-shrink-0">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -830,18 +829,18 @@ const StudentManagement = () => {
       </div>
 
       {/* Compact Search and Filters */}
-      <div className="bg-white rounded-lg shadow-sm p-4 flex-shrink-0">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm dark:shadow-gray-900/20 p-4 flex-shrink-0 border border-gray-200 dark:border-gray-700">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center space-x-2">
             <div className="bg-blue-100 p-1.5 rounded-lg">
               <FontAwesomeIcon icon={faSearch} className="text-blue-600 text-sm" />
             </div>
-            <h3 className="text-sm font-semibold text-gray-900">Search & Filter Students</h3>
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Search & Filter Students</h3>
           </div>
-          <button
-            onClick={() => setShowFilters(v => !v)}
-            className="lg:hidden inline-flex items-center gap-1 text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded hover:bg-blue-100 transition-colors"
-          >
+                      <button
+              onClick={() => setShowFilters(v => !v)}
+              className="lg:hidden inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-2 py-1 rounded hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
+            >
             <FontAwesomeIcon icon={showFilters ? faChevronUp : faChevronDown} />
             {showFilters ? 'Hide' : 'Show'}
           </button>
@@ -849,25 +848,25 @@ const StudentManagement = () => {
 
         <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 filter-container ${showFilters ? '' : 'hidden lg:grid'}`}>
           <div className="sm:col-span-2 lg:col-span-1 min-w-0">
-            <label className="block text-xs font-medium text-gray-700 mb-1">Search Students</label>
+            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Search Students</label>
             <div className="relative">
               <input
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Search by name, roll no, or email..."
-                className="w-full pl-8 pr-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-xs"
+                className="w-full pl-8 pr-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               />
-              <FontAwesomeIcon icon={faSearch} className="absolute left-2.5 top-2 text-gray-400 text-xs" />
+              <FontAwesomeIcon icon={faSearch} className="absolute left-2.5 top-2 text-gray-400 dark:text-gray-500 text-xs" />
             </div>
           </div>
           
           <div className="min-w-0">
-            <label className="block text-xs font-medium text-gray-700 mb-1">Filter by Year</label>
+            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Filter by Year</label>
             <select
               value={filterYear}
               onChange={(e) => setFilterYear(e.target.value)}
-              className="w-full px-2 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-xs"
+              className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             >
               <option value="">All Years</option>
               {Array.from(new Set(students.map(s => s.year))).filter(Boolean).map(year => (
@@ -877,11 +876,11 @@ const StudentManagement = () => {
           </div>
           
           <div className="min-w-0">
-            <label className="block text-xs font-medium text-gray-700 mb-1">Filter by Department</label>
+            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Filter by Department</label>
             <select
               value={filterDepartment}
               onChange={(e) => setFilterDepartment(e.target.value)}
-              className="w-full px-2 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-xs"
+              className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             >
               <option value="">All Departments</option>
               {Array.from(new Set(students.map(s => s.department))).filter(Boolean).map(dept => (
@@ -891,11 +890,11 @@ const StudentManagement = () => {
           </div>
 
           <div className="min-w-0">
-            <label className="block text-xs font-medium text-gray-700 mb-1">Filter by Section</label>
+            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Filter by Section</label>
             <select
               value={filterSection}
               onChange={(e) => setFilterSection(e.target.value)}
-              className="w-full px-2 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-xs"
+              className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             >
               <option value="">All Sections</option>
               {['A','B','C','D','E','F'].map(sec => (
@@ -905,12 +904,12 @@ const StudentManagement = () => {
           </div>
 
           <div className="sm:col-span-2 lg:col-span-1 min-w-0">
-            <label className="block text-xs font-medium text-gray-700 mb-1">Sort</label>
+            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Sort</label>
             <div className="grid grid-cols-2 gap-2">
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
-                className="w-full px-2 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-xs"
+                className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               >
                 <option value="name">Name</option>
                 <option value="rollNo">Roll No</option>
@@ -921,7 +920,7 @@ const StudentManagement = () => {
               <select
                 value={sortDir}
                 onChange={(e) => setSortDir(e.target.value)}
-                className="w-full px-2 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-xs"
+                className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-xs bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               >
                 <option value="asc">Asc</option>
                 <option value="desc">Desc</option>
@@ -933,40 +932,40 @@ const StudentManagement = () => {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mt-3">
           <div className="flex flex-wrap gap-1 min-w-0">
             {searchTerm && (
-              <span className="inline-flex items-center px-1.5 py-0.5 text-xs bg-gray-100 rounded">
+              <span className="inline-flex items-center px-1.5 py-0.5 text-xs bg-gray-100 dark:bg-gray-700 rounded text-gray-800 dark:text-gray-200">
                 Search: "{searchTerm}"
-                <button className="ml-1 text-gray-500" onClick={() => setSearchTerm("")}>×</button>
+                <button className="ml-1 text-gray-500 dark:text-gray-400" onClick={() => setSearchTerm("")}>×</button>
               </span>
             )}
             {filterYear && (
-              <span className="inline-flex items-center px-1.5 py-0.5 text-xs bg-gray-100 rounded">
+              <span className="inline-flex items-center px-1.5 py-0.5 text-xs bg-gray-100 dark:bg-gray-700 rounded text-gray-800 dark:text-gray-200">
                 Year: {filterYear}
-                <button className="ml-1 text-gray-500" onClick={() => setFilterYear("")}>×</button>
+                <button className="ml-1 text-gray-500 dark:text-gray-400" onClick={() => setFilterYear("")}>×</button>
               </span>
             )}
             {filterDepartment && (
-              <span className="inline-flex items-center px-1.5 py-0.5 text-xs bg-gray-100 rounded">
+              <span className="inline-flex items-center px-1.5 py-0.5 text-xs bg-gray-100 dark:bg-gray-700 rounded text-gray-800 dark:text-gray-200">
                 Dept: {filterDepartment}
-                <button className="ml-1 text-gray-500" onClick={() => setFilterDepartment("")}>×</button>
+                <button className="ml-1 text-gray-500 dark:text-gray-400" onClick={() => setFilterDepartment("")}>×</button>
               </span>
             )}
             {filterSection && (
-              <span className="inline-flex items-center px-1.5 py-0.5 text-xs bg-gray-100 rounded">
+              <span className="inline-flex items-center px-1.5 py-0.5 text-xs bg-gray-100 dark:bg-gray-700 rounded text-gray-800 dark:text-gray-200">
                 Sec: {filterSection}
-                <button className="ml-1 text-gray-500" onClick={() => setFilterSection("")}>×</button>
+                <button className="ml-1 text-gray-500 dark:text-gray-400" onClick={() => setFilterSection("")}>×</button>
               </span>
             )}
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-500">{sortedStudents.length} result{sortedStudents.length !== 1 ? 's' : ''}</span>
-            <button onClick={clearFilters} className="text-xs text-blue-600 hover:underline">Clear all</button>
+            <span className="text-xs text-gray-500 dark:text-gray-400">{sortedStudents.length} result{sortedStudents.length !== 1 ? 's' : ''}</span>
+            <button onClick={clearFilters} className="text-xs text-blue-600 dark:text-blue-400 hover:underline">Clear all</button>
           </div>
         </div>
       </div>
 
       {/* Compact Navigation Tabs */}
-      <div className="bg-white rounded-lg shadow-sm overflow-hidden flex-shrink-0">
-        <div className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm dark:shadow-gray-900/20 overflow-hidden flex-shrink-0 border border-gray-200 dark:border-gray-700">
+                  <div className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 border-b border-gray-200 dark:border-gray-600">
           <nav className="flex overflow-x-auto scrollbar-hide nav-tabs-container px-2">
             {tabs.map((tab) => (
               <button
@@ -974,11 +973,11 @@ const StudentManagement = () => {
                 onClick={() => setActiveTab(tab.id)}
                 className={`py-2 px-3 border-b-2 font-medium text-xs sm:text-sm flex items-center space-x-2 whitespace-nowrap flex-shrink-0 transition-all duration-200 ${
                   activeTab === tab.id
-                    ? 'border-blue-500 text-blue-600 bg-white shadow-sm'
-                    : 'border-transparent text-gray-600 hover:text-blue-600 hover:border-blue-300'
+                    ? 'border-blue-500 text-blue-600 dark:text-blue-400 bg-white dark:bg-gray-800 shadow-sm'
+                    : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:border-blue-300 dark:hover:border-blue-500'
                 }`}
               >
-                <FontAwesomeIcon icon={tab.icon} className={`text-xs ${activeTab === tab.id ? 'text-blue-500' : 'text-gray-400'}`} />
+                <FontAwesomeIcon icon={tab.icon} className={`text-xs ${activeTab === tab.id ? 'text-blue-500 dark:text-blue-400' : 'text-gray-400 dark:text-gray-500'}`} />
                 <span>{tab.name}</span>
               </button>
             ))}
@@ -1003,54 +1002,54 @@ const StudentManagement = () => {
       {/* Modals */}
       {showEditModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-lg w-full">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-lg w-full border border-gray-200 dark:border-gray-700">
             <div className="p-4 sm:p-6">
               <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">{editingStudent ? 'View / Edit Student' : 'Student'}</h3>
-                <button onClick={() => setShowEditModal(false)} className="text-gray-400 hover:text-gray-600">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{editingStudent ? 'View / Edit Student' : 'Student'}</h3>
+                <button onClick={() => setShowEditModal(false)} className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300">
                   <FontAwesomeIcon icon={faTimes} />
                 </button>
               </div>
               <div className="space-y-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Name</label>
-                  <input value={editForm.name || ''} onChange={(e)=>setEditForm(v=>({...v,name:e.target.value}))} className="w-full px-3 py-2 border border-gray-300 rounded"/>
+                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
+                  <input value={editForm.name || ''} onChange={(e)=>setEditForm(v=>({...v,name:e.target.value}))} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"/>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Roll No</label>
-                    <input value={editForm.rollNo || ''} onChange={(e)=>setEditForm(v=>({...v,rollNo:e.target.value}))} className="w-full px-3 py-2 border border-gray-300 rounded"/>
+                    <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Roll No</label>
+                    <input value={editForm.rollNo || ''} onChange={(e)=>setEditForm(v=>({...v,rollNo:e.target.value}))} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"/>
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Email</label>
-                    <input value={editForm.email || ''} onChange={(e)=>setEditForm(v=>({...v,email:e.target.value}))} className="w-full px-3 py-2 border border-gray-300 rounded"/>
+                    <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Email</label>
+                    <input value={editForm.email || ''} onChange={(e)=>setEditForm(v=>({...v,email:e.target.value}))} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"/>
                   </div>
                 </div>
                 <div className="grid grid-cols-3 gap-2">
                   <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Department</label>
-                    <input value={editForm.department || ''} onChange={(e)=>setEditForm(v=>({...v,department:e.target.value}))} className="w-full px-3 py-2 border border-gray-300 rounded"/>
+                    <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Department</label>
+                    <input value={editForm.department || ''} onChange={(e)=>setEditForm(v=>({...v,department:e.target.value}))} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"/>
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Year</label>
-                    <input value={editForm.year || ''} onChange={(e)=>setEditForm(v=>({...v,year:e.target.value}))} className="w-full px-3 py-2 border border-gray-300 rounded"/>
+                    <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Year</label>
+                    <input value={editForm.year || ''} onChange={(e)=>setEditForm(v=>({...v,year:e.target.value}))} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"/>
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Section</label>
-                    <input value={editForm.section || ''} onChange={(e)=>setEditForm(v=>({...v,section:e.target.value}))} className="w-full px-3 py-2 border border-gray-300 rounded"/>
+                    <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Section</label>
+                    <input value={editForm.section || ''} onChange={(e)=>setEditForm(v=>({...v,section:e.target.value}))} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"/>
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Status</label>
-                  <select value={editForm.status || 'active'} onChange={(e)=>setEditForm(v=>({...v,status:e.target.value}))} className="w-full px-3 py-2 border border-gray-300 rounded">
+                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Status</label>
+                  <select value={editForm.status || 'active'} onChange={(e)=>setEditForm(v=>({...v,status:e.target.value}))} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
                     <option value="active">active</option>
                     <option value="inactive">inactive</option>
                   </select>
                 </div>
               </div>
               <div className="mt-5 flex justify-end gap-2">
-                <button onClick={()=>setShowEditModal(false)} className="px-4 py-2 border border-gray-300 rounded">Close</button>
-                <button onClick={saveEdit} className="px-4 py-2 bg-blue-600 text-white rounded">Save</button>
+                <button onClick={()=>setShowEditModal(false)} className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">Close</button>
+                <button onClick={saveEdit} className="px-4 py-2 bg-blue-600 dark:bg-blue-700 hover:bg-blue-700 dark:hover:bg-blue-800 text-white rounded">Save</button>
               </div>
             </div>
           </div>

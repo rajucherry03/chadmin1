@@ -7,7 +7,7 @@ import { LoadingSpinner } from "./components/LazyComponent";
 import ErrorBoundary from "./components/ErrorBoundary";
 import OfflineIndicator from "./components/OfflineIndicator";
 import "./utils/fonts"; // Import font optimizations
-const AdminNavbar = lazy(() => import("./components/Navbar.jsx"));
+const AdminNavbar = lazy(() => import("./components/ModernNavbar.jsx"));
 const AdminDashboard = lazy(() => import("./components/AdminDashboard.jsx"));
 const Login = lazy(() => import("./components/Login.jsx"))
 const Students = lazy(() => import("./components/StudentManagement/StudentDashboard.jsx"));
@@ -93,9 +93,9 @@ function App() {
               element={
                 <PrivateRoute>
                   <Suspense fallback={<div className="p-4"><LoadingSpinner /></div>}>
-                    <div className="flex min-h-screen bg-gray-100">
+                    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-all duration-300">
                       <AdminNavbar />
-                      <div className="flex-1 transition-all duration-300">
+                      <div className="transition-all duration-300 lg:ml-72 pt-16 lg:pt-0">
                         <div className="p-4 lg:p-6">
                           <Routes>
                             <Route path="/dashboard" element={<AdminDashboard />} />

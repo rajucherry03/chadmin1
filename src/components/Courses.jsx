@@ -1,6 +1,20 @@
 import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { collection, getDocs, doc, getDoc, updateDoc, deleteDoc, query, orderBy, limit } from "firebase/firestore";
 import { db } from "../firebase";
+import { 
+  FaSearch, 
+  FaFilter, 
+  FaRefresh, 
+  FaEye, 
+  FaEdit, 
+  FaTrash, 
+  FaBookOpen,
+  FaUserTie,
+  FaGraduationCap,
+  FaTimes,
+  FaSave,
+  FaExclamationTriangle
+} from "react-icons/fa";
 
 function Courses() {
   const [courses, setCourses] = useState([]);
@@ -173,10 +187,10 @@ function Courses() {
   // Loading component
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-100 p-6 flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading courses...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 dark:border-blue-400 mx-auto mb-4"></div>
+          <p className="text-gray-600 dark:text-gray-400">Loading courses...</p>
         </div>
       </div>
     );
@@ -185,13 +199,13 @@ function Courses() {
   // Error component
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-100 p-6 flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
         <div className="text-center">
-          <div className="text-red-600 text-6xl mb-4">⚠️</div>
-          <p className="text-red-600 mb-4">{error}</p>
+          <FaExclamationTriangle className="text-red-600 dark:text-red-400 text-6xl mx-auto mb-4" />
+          <p className="text-red-600 dark:text-red-400 mb-4">{error}</p>
           <button
             onClick={fetchCoursesAndInstructors}
-            className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+            className="bg-blue-600 dark:bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors"
           >
             Retry
           </button>
@@ -201,31 +215,36 @@ function Courses() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 p-6">
-      <div className="max-w-7xl mx-auto">
-        <h1 className="text-4xl font-bold text-gray-800 mb-6 text-center">
-          Course Details
-        </h1>
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-all duration-300">
+      <div className="p-6 space-y-6">
+        {/* Header */}
+        <div className="text-center">
+          <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-2">
+            Course Management
+          </h1>
+          <p className="text-gray-600 dark:text-gray-400">
+            Manage and view course details, instructors, and academic progress
+          </p>
+        </div>
 
         {/* Search and Filter Controls */}
-        <div className="bg-white rounded-lg p-4 mb-6 shadow-md">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg dark:shadow-gray-900/20 p-6 border border-gray-200 dark:border-gray-700">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
+            <div className="relative">
+              <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
                 placeholder="Search courses, codes, or instructors..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full pl-10 pr-4 py-3 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Year</label>
               <select
                 value={filterYear}
                 onChange={(e) => setFilterYear(e.target.value)}
-                className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-3 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
               >
                 <option value="ALL">All Years</option>
                 <option value="I">I Year</option>
@@ -235,29 +254,29 @@ function Courses() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Section</label>
               <select
                 value={filterSection}
                 onChange={(e) => setFilterSection(e.target.value)}
-                className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-3 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
               >
                 <option value="ALL">All Sections</option>
                 <option value="ALL_SECTIONS">All Sections</option>
               </select>
             </div>
-            <div className="flex items-end">
+            <div>
               <button
                 onClick={fetchCoursesAndInstructors}
-                className="w-full bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition-colors"
+                className="w-full flex items-center justify-center space-x-2 bg-green-600 dark:bg-green-500 text-white px-4 py-3 rounded-lg hover:bg-green-700 dark:hover:bg-green-600 transition-colors"
               >
-                Refresh Data
+                <FaRefresh className="text-sm" />
+                <span>Refresh</span>
               </button>
             </div>
           </div>
         </div>
 
         {/* Results Summary */}
-        <div className="mb-4 text-sm text-gray-600">
+        <div className="text-sm text-gray-600 dark:text-gray-400">
           Showing {filteredCourses.length} of {courses.length} courses
         </div>
 
@@ -266,48 +285,54 @@ function Courses() {
           {filteredCourses.map((course) => (
             <div
               key={`${course.year}-${course.section}-${course.id}`}
-              className="bg-white shadow-lg rounded-lg p-6 hover:shadow-xl transition-all duration-200 border-l-4 border-blue-500"
+              className="bg-white dark:bg-gray-800 shadow-lg dark:shadow-gray-900/20 rounded-xl p-6 hover:shadow-xl dark:hover:shadow-gray-900/30 transition-all duration-300 border border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600"
             >
-              <div className="flex justify-between items-start mb-2">
-                <h2 className="text-xl font-semibold text-gray-700">
+              <div className="flex justify-between items-start mb-4">
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
                   {course.courseCode}
                 </h2>
-                <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">
+                <span className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-400 text-xs px-2 py-1 rounded-full font-medium">
                   {course.year} Year
                 </span>
               </div>
-              <p className="text-gray-600 font-medium mb-2 line-clamp-2">
+              <p className="text-gray-700 dark:text-gray-300 font-medium mb-3 line-clamp-2">
                 {course.courseName}
               </p>
-              <p className="text-gray-500 text-sm mb-2">
-                <strong>Section:</strong> {course.section}
-              </p>
-              <p className="text-gray-500 text-sm mb-2">
-                <strong>Instructor:</strong>{" "}
-                {instructors[course.instructor] || "Not Assigned"}
-              </p>
-              <p className="text-gray-500 text-sm mb-3">
-                <strong>Coverage:</strong>{" "}
-                {course.coveragePercentage || "N/A"}
-              </p>
+              <div className="space-y-2 mb-4">
+                <div className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400">
+                  <FaGraduationCap className="text-gray-400" />
+                  <span>Section: {course.section}</span>
+                </div>
+                <div className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400">
+                  <FaUserTie className="text-gray-400" />
+                  <span>Instructor: {instructors[course.instructor] || "Not Assigned"}</span>
+                </div>
+                <div className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400">
+                  <FaBookOpen className="text-gray-400" />
+                  <span>Coverage: {course.coveragePercentage || "N/A"}</span>
+                </div>
+              </div>
               <div className="flex justify-between gap-2">
                 <button
                   onClick={() => handleViewDetails(course)}
-                  className="flex-1 bg-blue-600 text-white px-3 py-2 rounded-md hover:bg-blue-700 text-sm transition-colors"
+                  className="flex-1 flex items-center justify-center space-x-1 bg-blue-600 dark:bg-blue-500 text-white px-3 py-2 rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 text-sm transition-colors"
                 >
-                  View
+                  <FaEye className="text-xs" />
+                  <span>View</span>
                 </button>
                 <button
                   onClick={() => handleEditCourse(course)}
-                  className="flex-1 bg-yellow-500 text-white px-3 py-2 rounded-md hover:bg-yellow-600 text-sm transition-colors"
+                  className="flex-1 flex items-center justify-center space-x-1 bg-yellow-500 dark:bg-yellow-600 text-white px-3 py-2 rounded-lg hover:bg-yellow-600 dark:hover:bg-yellow-700 text-sm transition-colors"
                 >
-                  Edit
+                  <FaEdit className="text-xs" />
+                  <span>Edit</span>
                 </button>
                 <button
                   onClick={() => handleDeleteCourse(course)}
-                  className="flex-1 bg-red-500 text-white px-3 py-2 rounded-md hover:bg-red-600 text-sm transition-colors"
+                  className="flex-1 flex items-center justify-center space-x-1 bg-red-500 dark:bg-red-600 text-white px-3 py-2 rounded-lg hover:bg-red-600 dark:hover:bg-red-700 text-sm transition-colors"
                 >
-                  Delete
+                  <FaTrash className="text-xs" />
+                  <span>Delete</span>
                 </button>
               </div>
             </div>
@@ -316,8 +341,8 @@ function Courses() {
         
         {filteredCourses.length === 0 && (
           <div className="text-center py-12">
-            <div className="text-gray-400 text-6xl mb-4">📚</div>
-            <p className="text-gray-600 text-lg mb-2">
+            <FaBookOpen className="text-gray-400 dark:text-gray-500 text-6xl mx-auto mb-4" />
+            <p className="text-gray-600 dark:text-gray-400 text-lg mb-2">
               {searchTerm || filterYear !== "ALL" || filterSection !== "ALL" 
                 ? "No courses match your filters." 
                 : "No courses found. Please add some data in Firebase."}
@@ -329,7 +354,7 @@ function Courses() {
                   setFilterYear("ALL");
                   setFilterSection("ALL");
                 }}
-                className="text-blue-600 hover:text-blue-800 underline"
+                className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline"
               >
                 Clear filters
               </button>
@@ -341,34 +366,61 @@ function Courses() {
       {/* View Modal */}
       {isViewing && selectedCourse && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4">
-          <div className="bg-white rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-2xl font-bold">Course Details</h2>
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-gray-700">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Course Details</h2>
               <button
                 onClick={() => setIsViewing(false)}
-                className="text-gray-500 hover:text-gray-700 text-2xl"
+                className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 text-2xl"
               >
-                ×
+                <FaTimes />
               </button>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <p className="mb-2"><strong>Course Name:</strong> {selectedCourse.courseName}</p>
-                <p className="mb-2"><strong>Course Code:</strong> {selectedCourse.courseCode}</p>
-                <p className="mb-2"><strong>Year:</strong> {selectedCourse.year}</p>
-                <p className="mb-2"><strong>Section:</strong> {selectedCourse.section}</p>
-                <p className="mb-2"><strong>Instructor:</strong> {instructors[selectedCourse.instructor] || "N/A"}</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-3">
+                <div>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Course Name</p>
+                  <p className="font-semibold text-gray-900 dark:text-white">{selectedCourse.courseName}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Course Code</p>
+                  <p className="font-semibold text-gray-900 dark:text-white">{selectedCourse.courseCode}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Year</p>
+                  <p className="font-semibold text-gray-900 dark:text-white">{selectedCourse.year}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Section</p>
+                  <p className="font-semibold text-gray-900 dark:text-white">{selectedCourse.section}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Instructor</p>
+                  <p className="font-semibold text-gray-900 dark:text-white">{instructors[selectedCourse.instructor] || "N/A"}</p>
+                </div>
               </div>
-              <div>
-                <p className="mb-2"><strong>Coverage Percentage:</strong> {selectedCourse.coveragePercentage || "N/A"}</p>
-                <p className="mb-2"><strong>Syllabus Coverage:</strong> {selectedCourse.syllabusCoverage || "N/A"}</p>
-                <p className="mb-2"><strong>Units Completed:</strong> {selectedCourse.unitsCompleted || "N/A"}</p>
-                <p className="mb-2"><strong>Deviation Reasons:</strong> {selectedCourse.deviationReasons || "N/A"}</p>
+              <div className="space-y-3">
+                <div>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Coverage Percentage</p>
+                  <p className="font-semibold text-gray-900 dark:text-white">{selectedCourse.coveragePercentage || "N/A"}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Syllabus Coverage</p>
+                  <p className="font-semibold text-gray-900 dark:text-white">{selectedCourse.syllabusCoverage || "N/A"}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Units Completed</p>
+                  <p className="font-semibold text-gray-900 dark:text-white">{selectedCourse.unitsCompleted || "N/A"}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Deviation Reasons</p>
+                  <p className="font-semibold text-gray-900 dark:text-white">{selectedCourse.deviationReasons || "N/A"}</p>
+                </div>
               </div>
             </div>
             <button
               onClick={() => setIsViewing(false)}
-              className="mt-4 bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700"
+              className="mt-6 bg-red-600 dark:bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-700 dark:hover:bg-red-600 transition-colors"
             >
               Close
             </button>
@@ -379,14 +431,14 @@ function Courses() {
       {/* Edit Modal */}
       {isEditing && selectedCourse && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4">
-          <div className="bg-white rounded-lg p-6 max-w-lg w-full max-h-[80vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-2xl font-bold">Edit Course</h2>
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 max-w-lg w-full max-h-[80vh] overflow-y-auto border border-gray-200 dark:border-gray-700">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Edit Course</h2>
               <button
                 onClick={() => setIsEditing(false)}
-                className="text-gray-500 hover:text-gray-700 text-2xl"
+                className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 text-2xl"
               >
-                ×
+                <FaTimes />
               </button>
             </div>
             <div className="space-y-4">
@@ -395,21 +447,21 @@ function Courses() {
                 if (key === "id" || key === "year" || key === "section") {
                   return (
                     <div key={key}>
-                      <label className="block font-semibold mb-1 capitalize">
+                      <label className="block font-semibold mb-2 capitalize text-gray-900 dark:text-white">
                         {key === "year" ? "Year" : key === "section" ? "Section" : key}
                       </label>
                       <input
                         type="text"
                         value={value}
                         disabled
-                        className="w-full p-2 border border-gray-300 rounded-md bg-gray-100"
+                        className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400"
                       />
                     </div>
                   );
                 }
                 return (
                   <div key={key}>
-                    <label className="block font-semibold mb-1 capitalize">
+                    <label className="block font-semibold mb-2 capitalize text-gray-900 dark:text-white">
                       {key.replace(/([A-Z])/g, " $1").trim()}
                     </label>
                     <input
@@ -419,24 +471,25 @@ function Courses() {
                       onChange={(e) =>
                         setSelectedCourse((prev) => ({ ...prev, [key]: e.target.value }))
                       }
-                      className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full p-3 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent"
                     />
                   </div>
                 );
               })}
             </div>
-            <div className="mt-4 flex justify-end gap-2">
+            <div className="mt-6 flex justify-end gap-3">
               <button
                 onClick={() => setIsEditing(false)}
-                className="bg-gray-300 text-gray-800 px-4 py-2 rounded-md hover:bg-gray-400"
+                className="bg-gray-300 dark:bg-gray-600 text-gray-800 dark:text-gray-200 px-4 py-2 rounded-lg hover:bg-gray-400 dark:hover:bg-gray-500 transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSaveChanges}
-                className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+                className="flex items-center space-x-2 bg-blue-600 dark:bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors"
               >
-                Save Changes
+                <FaSave className="text-sm" />
+                <span>Save Changes</span>
               </button>
             </div>
           </div>
