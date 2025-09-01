@@ -129,34 +129,36 @@ const EventManagement = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600 dark:text-gray-400">Loading events...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-6">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">Event Management</h1>
-              <p className="mt-1 text-sm text-gray-500">
-                Manage all university events, registrations, and resources
-              </p>
-            </div>
-            <div className="flex space-x-3">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Header Section */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden mb-6">
+          <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-5">
+            <h1 className="text-2xl sm:text-3xl font-bold text-white">Event Management</h1>
+            <p className="mt-1 text-blue-100">Manage all university events, registrations, and resources</p>
+          </div>
+          <div className="px-6 py-4 flex flex-wrap gap-3 justify-between items-center">
+            <div className="flex gap-3">
               <button
                 onClick={() => setActiveTab('creation')}
-                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                className="inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium text-white bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 shadow hover:shadow-md transition"
               >
                 <FaPlus className="mr-2" />
                 Create Event
               </button>
               <button
                 onClick={() => setShowBulkImport(true)}
-                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                className="inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium text-white bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 shadow hover:shadow-md transition"
               >
                 <FaUpload className="mr-2" />
                 Bulk Import
@@ -164,26 +166,24 @@ const EventManagement = () => {
             </div>
           </div>
         </div>
-      </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Tab Navigation */}
-        <div className="border-b border-gray-200 mb-8">
-          <nav className="-mb-px flex space-x-8 overflow-x-auto">
+        {/* Navigation Tabs */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-4 mb-6">
+          <nav className="flex gap-3 overflow-x-auto">
             {tabs.map((tab) => {
               const Icon = tab.icon;
+              const isActive = activeTab === tab.id;
               return (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 ${
-                    activeTab === tab.id
-                      ? 'border-blue-500 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  className={`whitespace-nowrap px-4 py-2.5 rounded-lg text-sm font-medium transition-all border ${
+                    isActive
+                      ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg shadow-blue-500/25 border-blue-600'
+                      : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 border-gray-200 dark:border-gray-600 hover:border-blue-300 dark:hover:border-blue-500'
                   }`}
                 >
-                  <Icon className="h-4 w-4" />
-                  <span>{tab.label}</span>
+                  <span className="inline-flex items-center gap-2"><Icon className="h-4 w-4" />{tab.label}</span>
                 </button>
               );
             })}
@@ -191,7 +191,7 @@ const EventManagement = () => {
         </div>
 
         {/* Tab Content */}
-        <div className="bg-white rounded-lg shadow">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700">
           {renderTabContent()}
         </div>
       </div>
@@ -210,8 +210,8 @@ const EventManagement = () => {
 
       {/* Event Details Modal */}
       {showEventDetails && selectedEvent && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-7xl w-full max-h-[95vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-7xl w-full max-h-[95vh] overflow-y-auto border border-gray-200 dark:border-gray-700">
             <EventDetails
               event={selectedEvent}
               onClose={() => {
@@ -232,17 +232,17 @@ const EventManagement = () => {
 
       {/* Edit Event Modal */}
       {showEditModal && editingEvent && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[95vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-4xl w-full max-h-[95vh] overflow-y-auto border border-gray-200 dark:border-gray-700">
             <div className="p-6">
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold text-gray-900">Edit Event</h2>
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Edit Event</h2>
                 <button
                   onClick={() => {
                     setShowEditModal(false);
                     setEditingEvent(null);
                   }}
-                  className="text-gray-400 hover:text-gray-600"
+                  className="text-gray-400 hover:text-gray-600 dark:text-gray-300 dark:hover:text-white"
                 >
                   <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -328,31 +328,31 @@ const EventDashboard = ({ events, stats, onRefresh, onViewAllEvents }) => {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Upcoming Events */}
-        <div className="bg-white rounded-lg border">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h3 className="text-lg font-medium text-gray-900">Upcoming Events</h3>
+        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+          <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white">Upcoming Events</h3>
           </div>
           <div className="p-6">
             {upcomingEvents.length > 0 ? (
               <div className="space-y-4">
                 {upcomingEvents.map((event) => (
-                  <div key={event.id} className="flex items-center space-x-4 p-4 bg-gray-50 rounded-lg">
+                  <div key={event.id} className="flex items-center space-x-4 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
                     <div className="flex-shrink-0">
-                      <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                        <FaCalendarAlt className="h-6 w-6 text-blue-600" />
+                      <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center">
+                        <FaCalendarAlt className="h-6 w-6 text-blue-600 dark:text-blue-400" />
                       </div>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">{event.title}</p>
-                      <p className="text-sm text-gray-500">
+                      <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{event.title}</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
                         {new Date(event.startDate).toLocaleDateString()} • {event.venue}
                       </p>
                     </div>
                     <div className="flex-shrink-0">
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        event.status === 'approved' ? 'bg-green-100 text-green-800' :
-                        event.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                        'bg-red-100 text-red-800'
+                        event.status === 'approved' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' :
+                        event.status === 'pending' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400' :
+                        'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
                       }`}>
                         {event.status}
                       </span>
@@ -361,19 +361,19 @@ const EventDashboard = ({ events, stats, onRefresh, onViewAllEvents }) => {
                 ))}
               </div>
             ) : (
-              <p className="text-gray-500 text-center py-4">No upcoming events</p>
+              <p className="text-gray-500 dark:text-gray-400 text-center py-4">No upcoming events</p>
             )}
           </div>
         </div>
 
         {/* Recent Events */}
-        <div className="bg-white rounded-lg border">
-          <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-            <h3 className="text-lg font-medium text-gray-900">Recent Events</h3>
+        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+          <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white">Recent Events</h3>
             {onViewAllEvents && (
               <button
                 onClick={onViewAllEvents}
-                className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 font-medium"
               >
                 View All Events →
               </button>
@@ -383,20 +383,20 @@ const EventDashboard = ({ events, stats, onRefresh, onViewAllEvents }) => {
             {recentEvents.length > 0 ? (
               <div className="space-y-4">
                 {recentEvents.map((event) => (
-                  <div key={event.id} className="flex items-center space-x-4 p-4 bg-gray-50 rounded-lg">
+                  <div key={event.id} className="flex items-center space-x-4 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
                     <div className="flex-shrink-0">
-                      <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                        <FaCheckCircle className="h-6 w-6 text-green-600" />
+                      <div className="w-12 h-12 bg-green-100 dark:bg-green-900/30 rounded-lg flex items-center justify-center">
+                        <FaCheckCircle className="h-6 w-6 text-green-600 dark:text-green-400" />
                       </div>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">{event.title}</p>
-                      <p className="text-sm text-gray-500">
+                      <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{event.title}</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
                         {new Date(event.startDate).toLocaleDateString()} • {event.category}
                       </p>
                     </div>
                     <div className="flex-shrink-0">
-                      <span className="text-sm text-gray-500">
+                      <span className="text-sm text-gray-500 dark:text-gray-400">
                         {event.registrations?.length || 0} participants
                       </span>
                     </div>
@@ -404,7 +404,7 @@ const EventDashboard = ({ events, stats, onRefresh, onViewAllEvents }) => {
                 ))}
               </div>
             ) : (
-              <p className="text-gray-500 text-center py-4">No recent events</p>
+              <p className="text-gray-500 dark:text-gray-400 text-center py-4">No recent events</p>
             )}
           </div>
         </div>
