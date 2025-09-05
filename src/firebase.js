@@ -1,10 +1,10 @@
+
 // Import the functions you need from the SDKs you need
 import { initializeApp, getApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
 import { getFirestore, initializeFirestore, enableNetwork, disableNetwork } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 import { getStorage } from "firebase/storage";
-import { handleFirebaseAnalyticsError } from "./utils/errorHandler.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyC2w0vh_kiAGXTmRDx69iMgPcqObi_-Zw0",
@@ -23,7 +23,7 @@ let analytics = null;
 try { 
   analytics = getAnalytics(app); 
 } catch (error) {
-  handleFirebaseAnalyticsError(error, 'Firebase Analytics initialization');
+  console.warn('Firebase Analytics initialization failed:', error);
   // Analytics will fall back to local config
 }
 

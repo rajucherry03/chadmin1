@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { signInWithEmailAndPassword } from "firebase/auth";
-import { auth } from "../firebase";
+import { useDjangoAuth } from "../contexts/DjangoAuthContext";
+import { isDjangoSuperuser } from "../utils/djangoAuthHelpers";
 
 const Login = () => {
   const [email, setEmail] = useState("");
@@ -9,43 +9,157 @@ const Login = () => {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
-
-  // List of Admin Emails
-  const adminEmails = ["admin@gmail.com", "dshod@mits.ac.in"]; // Add your admin emails here
-
-  const isAdmin = (email) => adminEmails.includes(email.toLowerCase());
+  const { login: djangoLogin, isAuthenticated } = useDjangoAuth();
 
   const handleLogin = async () => {
     setError(null);
     setLoading(true);
 
+    // Validate input fields
+    if (!email.trim()) {
+      setError("Please enter your email address.");
+      setLoading(false);
+      return;
+    }
+    
+    if (!password.trim()) {
+      setError("Please enter your password.");
+      setLoading(false);
+      return;
+    }
+
     try {
       const sanitizedEmail = email.trim().toLowerCase();
-      const userCredential = await signInWithEmailAndPassword(auth, sanitizedEmail, password);
+      
+      // Django API login
+      const djangoResult = await djangoLogin(sanitizedEmail, password);
+      
+      if (djangoResult.success) {
+        // Django login successful
+        console.log('Django login successful:', djangoResult.user);
+        console.log('Raw login response:', djangoResult.rawResponse);
+        
+        // Check if the user is a Django superuser
+        const user = djangoResult.user;
+        console.log('Login result user data:', user);
+        console.log('User data structure:', {
+          email: user?.email,
+          username: user?.username,
+          is_superuser: user?.is_superuser,
+          is_staff: user?.is_staff,
+          is_active: user?.is_active,
+          fullUserObject: user
+        });
+        
+        if (!user) {
+          // Create a basic user object if none exists
+          const fallbackUser = {
+            email: sanitizedEmail,
+            username: sanitizedEmail.split('@')[0],
+            is_superuser: false,
+            is_staff: false,
+            is_active: true
+          };
+          console.log('No user data received, using fallback user:', fallbackUser);
+          // Continue with fallback user instead of failing
+        }
+        
+        // Use fallback user if original user is null
+        const currentUser = user || {
+          email: sanitizedEmail,
+          username: sanitizedEmail.split('@')[0],
+          is_superuser: false,
+          is_staff: false,
+          is_active: true
+        };
+        
+        console.log('Using user for validation:', currentUser);
+        
+        // Check superuser status with multiple approaches
+        let isSuperuser = false;
+        
+        // Method 1: Direct check from user object
+        if (currentUser.is_superuser !== undefined) {
+          isSuperuser = currentUser.is_superuser === true;
+          console.log('Superuser status from direct field:', isSuperuser);
+        }
+        // Method 2: Check alternative field names
+        else if (currentUser.superuser !== undefined) {
+          isSuperuser = currentUser.superuser === true;
+          console.log('Superuser status from alternative field:', isSuperuser);
+        }
+        // Method 3: Check if user has admin role
+        else if (currentUser.role === 'superuser' || currentUser.role === 'admin') {
+          isSuperuser = true;
+          console.log('Superuser status from role field:', isSuperuser);
+        }
+        // Method 4: Try to fetch complete profile (only if we have a real user object)
+        else if (user && user.email) {
+          console.log('User data missing superuser field, attempting to fetch complete profile...');
+          try {
+            const { getDjangoCurrentUser } = await import('../utils/djangoAuthHelpers');
+            const completeUserData = await getDjangoCurrentUser();
+            if (completeUserData) {
+              console.log('Complete user data:', completeUserData);
+              isSuperuser = isDjangoSuperuser(completeUserData);
+              console.log('Superuser status from profile fetch:', isSuperuser);
+            } else {
+              console.warn('Could not fetch user profile');
+            }
+          } catch (fetchError) {
+            console.error('Error fetching complete user data:', fetchError);
+          }
+        }
+        
+        // Method 5: Allow known admin emails (staff users with admin privileges)
+        if (!isSuperuser && currentUser.email) {
+          const knownAdminEmails = [
+            'admin1@gmail.com',
+            'admin@gmail.com',
+            'superuser@gmail.com'
+          ];
+          
+          if (knownAdminEmails.includes(currentUser.email.toLowerCase())) {
+            isSuperuser = true;
+            console.log('Admin access granted for known email:', currentUser.email);
+            console.log('Superuser status from known email list:', isSuperuser);
+            console.warn('⚠️ Using email-based admin validation for:', currentUser.email);
+          }
+        }
+        
+        // Final superuser check
+        if (!isSuperuser) {
+          // Show detailed error with user data for debugging
+          const errorMessage = `Access denied. Only authorized admin users can access this panel. 
 
-      const loggedInEmail = userCredential.user.email;
+Debug Info:
+- User email: ${currentUser?.email || 'Not provided'}
+- Username: ${currentUser?.username || 'Not provided'}
+- is_superuser: ${currentUser?.is_superuser || 'Not provided'}
+- is_staff: ${currentUser?.is_staff || 'Not provided'}
+- User object: ${JSON.stringify(currentUser, null, 2)}
 
-      // Check if the user is an admin
-      if (!isAdmin(loggedInEmail)) {
-        setError("You are not authorized to access this page.");
-        await auth.signOut(); // Sign out unauthorized users
-        setLoading(false);
+Authorized emails: admin1@gmail.com, admin@gmail.com, superuser@gmail.com
+
+Contact your system administrator if you believe this is an error.`;
+          
+          setError(errorMessage);
+          setLoading(false);
+          return;
+        }
+        
+        console.log('Superuser validation passed, proceeding to dashboard');
+
+        // Login successful
+        navigate("/dashboard");
         return;
-      }
-
-      // Login successful
-      navigate("/dashboard");
-    } catch (error) {
-      // Handle Firebase login errors
-      if (error.code === "auth/user-not-found") {
-        setError("User not found. Please check your email.");
-      } else if (error.code === "auth/wrong-password") {
-        setError("Incorrect password. Please try again.");
-      } else if (error.code === "auth/invalid-email") {
-        setError("Invalid email address.");
       } else {
-        setError("An error occurred. Please try again.");
+        // Django login failed
+        setError(djangoResult.error || "Login failed. Please check your credentials.");
       }
+    } catch (error) {
+      console.error('Login error:', error);
+      setError("An error occurred. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -54,9 +168,12 @@ const Login = () => {
   return (
     <div className="h-screen flex items-center justify-center bg-gradient-to-r from-blue-500 to-indigo-600">
       <div className="bg-white p-8 shadow-lg rounded-md w-96">
-        <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">
+        <h2 className="text-2xl font-bold text-gray-800 mb-2 text-center">
           Admin Login
         </h2>
+        <p className="text-sm text-gray-600 mb-6 text-center">
+          Authorized Admin Access
+        </p>
 
         {/* Error Message */}
         {error && (
@@ -75,6 +192,7 @@ const Login = () => {
               className="block w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:outline-none"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && !loading && handleLogin()}
               disabled={loading}
             />
           </div>
@@ -88,6 +206,7 @@ const Login = () => {
               className="block w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:outline-none"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && !loading && handleLogin()}
               disabled={loading}
             />
           </div>

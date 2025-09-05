@@ -1,11 +1,12 @@
 import React, { useState, useEffect, lazy, Suspense } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { auth } from "./firebase"; // Import Firebase auth
 import { queryClient } from "./utils/queryClient";
 import { LoadingSpinner } from "./components/LazyComponent";
 import ErrorBoundary from "./components/ErrorBoundary";
 import OfflineIndicator from "./components/OfflineIndicator";
+import { DjangoAuthProvider, useDjangoAuth } from "./contexts/DjangoAuthContext";
+import { useTokenRefresh } from "./hooks/useTokenRefresh";
 import "./utils/fonts"; // Import font optimizations
 const AdminNavbar = lazy(() => import("./components/ModernNavbar.jsx"));
 const AdminDashboard = lazy(() => import("./components/AdminDashboard.jsx"));
@@ -54,38 +55,49 @@ const EventManagement = lazy(() => import("./components/EventManagement/EventMan
 const InternshipPlacementManagement = lazy(() => import("./components/InternshipPlacementManagement/InternshipPlacementManagement.jsx"));
 const ResearchDevelopment = lazy(() => import("./components/RnD/ResearchDevelopment.jsx"));
 const FeedbackManagement = lazy(() => import("./components/FeedbackManagement/FeedbackManagement.jsx"));
+const UserProfile = lazy(() => import("./components/UserProfile.jsx"));
+const ProfileApiTest = lazy(() => import("./components/ProfileApiTest.jsx"));
+const StudentsApiTest = lazy(() => import("./components/StudentsApiTest.jsx"));
+const EnhancedDjangoStudentManagement = lazy(() => import("./components/EnhancedDjangoStudentManagement.jsx"));
+const FirebaseToDjangoMigration = lazy(() => import("./components/FirebaseToDjangoMigration.jsx"));
+const TestStudentCreation = lazy(() => import("./components/TestStudentCreation.jsx"));
+const Logout = lazy(() => import("./components/Logout.jsx"));
 
-// Private Route Wrapper
+// Private Route Wrapper with Token Refresh
 const PrivateRoute = ({ children }) => {
-  const [authenticated, setAuthenticated] = useState(false);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    // Check authentication state
-    const unsubscribe = auth.onAuthStateChanged((user) => {
-      setAuthenticated(!!user);
-      setLoading(false);
-    });
-    return () => unsubscribe(); // Cleanup subscription
-  }, []);
+  const { isAuthenticated, loading } = useDjangoAuth();
+  
+  // Set up automatic token refresh for authenticated users
+  useTokenRefresh(5); // Refresh every 5 minutes
 
   if (loading) {
     return <div className="text-center mt-10"><LoadingSpinner size="lg" /></div>;
   }
 
-  return authenticated ? children : <Navigate to="/" />;
+  return isAuthenticated ? children : <Navigate to="/" />;
 };
 
 function App() {
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
-        <OfflineIndicator />
-        <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <DjangoAuthProvider>
+          <OfflineIndicator />
+          <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <Routes>
             <Route path="/" element={
               <Suspense fallback={<div className="p-4"><LoadingSpinner /></div>}>
                 <Login />
+              </Suspense>
+            } />
+            <Route path="/login" element={
+              <Suspense fallback={<div className="p-4"><LoadingSpinner /></div>}>
+                <Login />
+              </Suspense>
+            } />
+            <Route path="/logout" element={
+              <Suspense fallback={<div className="p-4"><LoadingSpinner /></div>}>
+                <Logout />
               </Suspense>
             } />
             <Route
@@ -142,6 +154,12 @@ function App() {
                             <Route path="/internship-placement" element={<InternshipPlacementManagement />} />
                             <Route path="/research-development/*" element={<ResearchDevelopment />} />
                             <Route path="/feedback-management/*" element={<FeedbackManagement />} />
+                            <Route path="/profile" element={<UserProfile />} />
+                            <Route path="/profile-test" element={<ProfileApiTest />} />
+                            <Route path="/students-api-test" element={<StudentsApiTest />} />
+                            <Route path="/enhanced-student-management" element={<EnhancedDjangoStudentManagement />} />
+                            <Route path="/firebase-to-django-migration" element={<FirebaseToDjangoMigration />} />
+                            <Route path="/test-student-creation" element={<TestStudentCreation />} />
                           </Routes>
                         </div>
                       </div>
@@ -151,7 +169,8 @@ function App() {
               }
             />
           </Routes>
-        </Router>
+          </Router>
+        </DjangoAuthProvider>
       </QueryClientProvider>
     </ErrorBoundary>
   );

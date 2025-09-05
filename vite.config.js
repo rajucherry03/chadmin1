@@ -7,7 +7,8 @@ export default defineConfig({
     headers: {
       'X-Frame-Options': 'DENY',
       'X-Content-Type-Options': 'nosniff',
-      'Referrer-Policy': 'strict-origin-when-cross-origin'
+      'Referrer-Policy': 'strict-origin-when-cross-origin',
+      'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com https://www.googleapis.com https://apis.google.com https://www.googletagmanager.com https://www.google-analytics.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebase.googleapis.com https://www.google-analytics.com https://analytics.google.com https://apis.google.com https://firebaseinstallations.googleapis.com https://fcmregistrations.googleapis.com https://fcm.googleapis.com https://campushub-backend1.onrender.com http://127.0.0.1:8000 http://localhost:8000; frame-src 'self' https://ch360-erp.firebaseapp.com https://ch360-ds-erp-ab6dc.firebaseapp.com https://apis.google.com; object-src 'none'; base-uri 'self'; form-action 'self';"
     }
   },
   build: {
@@ -36,7 +37,7 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    include: ['react', 'react-dom'],
+    include: ['react', 'react-dom', 'firebase/app', 'firebase/auth', 'firebase/firestore', 'firebase/analytics', 'firebase/storage'],
   },
   assetsInclude: ['**/*.manifest.json', '**/*.webmanifest'],
   define: {

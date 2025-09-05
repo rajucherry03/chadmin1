@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
+import LogoutButton from "./LogoutButton";
+import TokenStatus from "./TokenStatus";
 import {
   FaUserGraduate,
   FaChalkboardTeacher,
@@ -272,12 +274,26 @@ const AdminNavbar = () => {
               CampusHub360
             </Link>
           )}
-          <button
-            onClick={toggleSidebar}
-            className="p-2 rounded-lg bg-gray-700 hover:bg-gray-600 transition-colors"
-          >
-            {isSidebarOpen ? <FaTimes /> : <FaBars />}
-          </button>
+          <div className="flex items-center space-x-2">
+            {!isSidebarOpen && (
+              <>
+                <TokenStatus 
+                  showDetails={false}
+                  className="text-xs"
+                />
+                <LogoutButton 
+                  iconOnly={true}
+                  className="p-2 rounded-lg bg-gray-700 hover:bg-gray-600 transition-colors"
+                />
+              </>
+            )}
+            <button
+              onClick={toggleSidebar}
+              className="p-2 rounded-lg bg-gray-700 hover:bg-gray-600 transition-colors"
+            >
+              {isSidebarOpen ? <FaTimes /> : <FaBars />}
+            </button>
+          </div>
         </div>
 
         {/* Navigation Items */}
@@ -357,26 +373,27 @@ const AdminNavbar = () => {
 
           {/* Logout Section */}
           <div className="border-t border-gray-700 p-4">
-            <Link
-              to="/logout"
-              className="flex items-center px-3 py-2.5 text-red-400 hover:bg-red-500 hover:text-white rounded-lg transition-colors duration-200"
-            >
-              <FaSignOutAlt className="text-lg" />
-              {isSidebarOpen && (
-                <span className="ml-3 font-medium">Logout</span>
-              )}
-            </Link>
+            <LogoutButton 
+              showLabel={isSidebarOpen}
+              className="w-full"
+            />
           </div>
         </div>
       </div>
 
       {/* Mobile Toggle Button */}
-      <button
-        onClick={toggleSidebar}
-        className="fixed top-4 left-4 z-50 lg:hidden p-3 bg-gray-800 text-white rounded-lg shadow-lg hover:bg-gray-700 transition-colors"
-      >
-        <FaBars className="text-lg" />
-      </button>
+      <div className="fixed top-4 left-4 z-50 lg:hidden flex items-center space-x-2">
+        <button
+          onClick={toggleSidebar}
+          className="p-3 bg-gray-800 text-white rounded-lg shadow-lg hover:bg-gray-700 transition-colors"
+        >
+          <FaBars className="text-lg" />
+        </button>
+        <LogoutButton 
+          iconOnly={true}
+          className="p-3 bg-red-600 text-white rounded-lg shadow-lg hover:bg-red-700 transition-colors"
+        />
+      </div>
     </>
   );
 };

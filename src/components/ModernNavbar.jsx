@@ -37,6 +37,7 @@ import {
   FaCommentDots,
   FaSun,
   FaMoon,
+  FaDatabase,
 } from "react-icons/fa";
 
 const ModernNavbar = () => {
@@ -418,6 +419,12 @@ const ModernNavbar = () => {
           to: "/feedback-management",
           links: [],
         },
+        {
+          title: "User Profile",
+          icon: FaUserTie,
+          to: "/profile",
+          links: [],
+        },
       ]
     },
   ]), []);
@@ -461,6 +468,11 @@ const ModernNavbar = () => {
 
   const otherLinks = [
     { label: "Create User", to: "/createuser", icon: FaUserPlus },
+    { label: "Profile API Test", to: "/profile-test", icon: FaFlask },
+    { label: "Students API Test", to: "/students-api-test", icon: FaUserGraduate },
+    { label: "Enhanced Student Management", to: "/enhanced-student-management", icon: FaUserGraduate },
+    { label: "Firebase to Django Migration", to: "/firebase-to-django-migration", icon: FaDatabase },
+    { label: "Test Student Creation", to: "/test-student-creation", icon: FaUserGraduate },
   ];
 
   const SectionButton = ({ title, Icon, active, open, onClick, showLabel }) => (
@@ -642,8 +654,15 @@ const ModernNavbar = () => {
           </div>
         </div>
 
-        {/* Logout Section */}
+        {/* User Section */}
         <div className="nav-header border-t mt-auto">
+          <Link
+            to="/profile"
+            className="nav-link text-blue-400 hover:bg-blue-500 hover:text-white transition-all duration-200"
+          >
+            <FaUserTie className="nav-link-icon" />
+            <span className="nav-link-text">My Profile</span>
+          </Link>
           <Link
             to="/logout"
             className="nav-link text-red-400 hover:bg-red-500 hover:text-white transition-all duration-200"
