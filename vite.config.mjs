@@ -9,7 +9,11 @@ const __dirname = path.dirname(__filename);
 export default defineConfig({
   plugins: [react()],
   resolve: {
-    alias: {},
+    alias: {
+      'firebase/firestore': path.resolve(__dirname, 'src/firebase-stubs/firestore.js'),
+      'firebase/auth': path.resolve(__dirname, 'src/firebase-stubs/auth.js'),
+      'firebase/storage': path.resolve(__dirname, 'src/firebase-stubs/storage.js'),
+    },
   },
   server: {
     headers: {
