@@ -8,7 +8,8 @@ import SecurityVisitors from "./HostelManagement/SecurityVisitors.jsx";
 import ComplaintsCommunications from "./HostelManagement/ComplaintsCommunications.jsx";
 import HostelReports from "./HostelManagement/HostelReports.jsx";
 import HostelPolicy from "./HostelManagement/HostelPolicy.jsx";
-import { useCollection } from "../utils/firestoreHooks";
+// TODO: Implement hostel API service
+// import { useCollection } from "../utils/firestoreHooks";
 import { Spinner } from "./HostelManagement/SharedUI.jsx";
 
 const tabs = [

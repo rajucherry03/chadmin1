@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import studentApiService from '../services/studentApiService';
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faUser,
@@ -59,7 +60,6 @@ import {
   faEllipsisVertical,
   faList
 } from "@fortawesome/free-solid-svg-icons";
-import { db, auth } from "../../firebase";
 import {
   collection,
   collectionGroup,
@@ -74,8 +74,6 @@ import {
   doc,
   serverTimestamp
 } from "firebase/firestore";
-import { sendPasswordResetEmail } from "firebase/auth";
-
 const FacultyProfileManagement = () => {
   const [faculty, setFaculty] = useState([]);
   const [selectedFaculty, setSelectedFaculty] = useState(null);

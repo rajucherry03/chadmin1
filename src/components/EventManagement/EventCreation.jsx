@@ -1,8 +1,6 @@
+// TODO: This component needs Django API integration - Firebase imports removed
 import React, { useState, useEffect } from 'react';
 import { FaSave, FaUpload, FaUsers, FaCalendarAlt, FaMapMarkerAlt, FaMoneyBillWave, FaCheckCircle, FaTimes, FaUserTie, FaGraduationCap } from 'react-icons/fa';
-import { collection, addDoc, serverTimestamp, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
-import { db } from '../../firebase';
-
 const EventCreation = ({ onEventCreated, editingEvent, isEditing = false }) => {
   const [formData, setFormData] = useState({
     resourcePersonName: '',

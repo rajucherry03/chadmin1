@@ -1,11 +1,11 @@
+// TODO: This component needs Django API integration - Firebase imports removed
 import React, { useState, useEffect } from 'react';
-import { auth } from '../firebase';
 import { 
   getFacultyProfile, 
   updateFacultyProfile, 
   hasPermission, 
   FACULTY_ROLES 
-} from '../utils/facultyAuthHelpers';
+// } from '../utils/facultyAuthHelpers'; // TODO: Implement faculty API service
 
 const FacultyProfile = () => {
   const [facultyData, setFacultyData] = useState(null);

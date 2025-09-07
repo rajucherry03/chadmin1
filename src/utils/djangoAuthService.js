@@ -4,8 +4,8 @@ import { DJANGO_BASE_URL } from '../config/apiConfig.js';
 class DjangoAuthService {
   constructor() {
     this.baseURL = DJANGO_BASE_URL;
-    this.token = localStorage.getItem('django_token');
-    this.refreshToken = localStorage.getItem('django_refresh_token');
+    this.token = localStorage.getItem('django_token') || localStorage.getItem('access_token');
+    this.refreshToken = localStorage.getItem('django_refresh_token') || localStorage.getItem('refresh_token');
   }
 
   // Set authentication tokens
@@ -13,8 +13,10 @@ class DjangoAuthService {
     this.token = accessToken;
     this.refreshToken = refreshToken;
     localStorage.setItem('django_token', accessToken);
+    localStorage.setItem('access_token', accessToken); // Store in both formats for compatibility
     if (refreshToken) {
       localStorage.setItem('django_refresh_token', refreshToken);
+      localStorage.setItem('refresh_token', refreshToken); // Store in both formats for compatibility
     }
   }
 
@@ -23,7 +25,9 @@ class DjangoAuthService {
     this.token = null;
     this.refreshToken = null;
     localStorage.removeItem('django_token');
+    localStorage.removeItem('access_token');
     localStorage.removeItem('django_refresh_token');
+    localStorage.removeItem('refresh_token');
   }
 
   // Get authorization headers
@@ -42,6 +46,8 @@ class DjangoAuthService {
   // Make authenticated API request
   async makeRequest(endpoint, options = {}) {
     const url = `${this.baseURL}${endpoint}`;
+    console.log('Making request to URL:', url);
+    console.log('Request headers:', this.getAuthHeaders());
     let config = {
       headers: this.getAuthHeaders(),
       ...options,
@@ -507,7 +513,8 @@ class DjangoAuthService {
 
   // Get stored token
   getToken() {
-    return this.token;
+    // Always get the most current token from localStorage
+    return this.token || localStorage.getItem('django_token') || localStorage.getItem('access_token');
   }
 
   // Students CRUD Operations
@@ -525,7 +532,10 @@ class DjangoAuthService {
         }
       });
       
-      const endpoint = `/v1/students/students/${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+      const queryString = queryParams.toString();
+      const endpoint = `/v1/students/students/${queryString ? `?${queryString}` : ''}`;
+      console.log('Making request to endpoint:', endpoint);
+      console.log('Full URL will be:', `${this.baseURL}${endpoint}`);
       const response = await this.makeRequest(endpoint);
       
       if (response.ok) {

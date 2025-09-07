@@ -471,6 +471,10 @@ const ModernNavbar = () => {
     { label: "Profile API Test", to: "/profile-test", icon: FaFlask },
     { label: "Students API Test", to: "/students-api-test", icon: FaUserGraduate },
     { label: "Enhanced Student Management", to: "/enhanced-student-management", icon: FaUserGraduate },
+    { label: "Student Management Dashboard", to: "/student-management-dashboard", icon: FaUserGraduate },
+    { label: "Std (Django Students)", to: "/std", icon: FaUserGraduate },
+    { label: "API Test", to: "/api-test", icon: FaDatabase },
+    { label: "Student Data Test", to: "/student-data-test", icon: FaUserGraduate },
     { label: "Firebase to Django Migration", to: "/firebase-to-django-migration", icon: FaDatabase },
     { label: "Test Student Creation", to: "/test-student-creation", icon: FaUserGraduate },
   ];

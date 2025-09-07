@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { db } from "../firebase";
-import { collection, getDocs, query, where, orderBy } from "firebase/firestore";
-
+import studentApiService from '../services/studentApiService';
 const StudentAnalytics = () => {
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);

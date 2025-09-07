@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { db } from "../firebase";
-import { collection, doc, setDoc, serverTimestamp, writeBatch, getDocs, query } from "firebase/firestore";
+import studentApiService from '../services/studentApiService';
 import * as XLSX from "xlsx";
-import { FirebaseErrorHandler } from "../utils/errorHandler";
+import { handleError, logError } from "../utils/djangoErrorHandler";
 
 const BulkImport = ({ onClose, onSuccess }) => {
   const [file, setFile] = useState(null);
@@ -1420,13 +1419,13 @@ const BulkImport = ({ onClose, onSuccess }) => {
            console.error(`Row data:`, row);
            
            // Handle errors with better user feedback
-           const errorInfo = await FirebaseErrorHandler.handleError(error, `BulkImport-Row${i + 1}`);
+           const errorInfo = handleError(error, `BulkImport-Row${i + 1}`);
+           logError(errorInfo);
            
-           if (errorInfo.type === 'connectivity') {
+           if (errorInfo.type === 'NETWORK') {
              // Stop the import process for connectivity issues
              setIsUploading(false);
              setUploadProgress(0);
-             FirebaseErrorHandler.showUserFriendlyError(errorInfo);
              return;
            }
            
@@ -1459,8 +1458,8 @@ const BulkImport = ({ onClose, onSuccess }) => {
        console.error('Import error:', error);
        
        // Handle import errors with better user feedback
-       const errorInfo = await FirebaseErrorHandler.handleError(error, 'BulkImport-Main');
-       FirebaseErrorHandler.showUserFriendlyError(errorInfo);
+       const errorInfo = handleError(error, 'BulkImport-Main');
+       logError(errorInfo);
      } finally {
        setIsUploading(false);
        setUploadProgress(0);

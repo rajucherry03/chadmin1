@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { collection, collectionGroup, getDocs, doc, getDoc, updateDoc, query, where, deleteDoc, deleteField, arrayRemove } from "firebase/firestore";
-import { db } from "../firebase";
+import studentApiService from '../services/studentApiService';
 import { studentsCollectionPath } from "../utils/pathBuilders";
 
 function FacultyAssignments() {

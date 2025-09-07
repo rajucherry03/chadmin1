@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import studentApiService from '../../services/studentApiService';
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faEnvelope, faSave, faDownload, faUndo, faCheckCircle,
@@ -7,9 +8,6 @@ import {
   faUserPlus, faCopy, faArrowsRotate, faEnvelopeOpen, faEnvelopeOpenText,
   faClock, faCheck, faTimes, faSpinner
 } from "@fortawesome/free-solid-svg-icons";
-import { db } from "../../firebase";
-import { doc, updateDoc, writeBatch, addDoc, collection, serverTimestamp } from "firebase/firestore";
-
 const EmailManager = ({ students, onClose }) => {
   const [selectedStudents, setSelectedStudents] = useState([]);
   const [emailTemplates, setEmailTemplates] = useState([]);

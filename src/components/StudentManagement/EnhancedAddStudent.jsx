@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import studentApiService from '../../services/studentApiService';
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faUser,
@@ -15,9 +16,6 @@ import {
   faArrowRight,
   faCheck
 } from "@fortawesome/free-solid-svg-icons";
-import { db } from "../../firebase";
-import { collection, addDoc, getDocs, query, where, orderBy, limit, collectionGroup } from "firebase/firestore";
-
 const EnhancedAddStudent = ({ onClose, onSuccess }) => {
   const [currentStep, setCurrentStep] = useState(1);
   const [loading, setLoading] = useState(false);

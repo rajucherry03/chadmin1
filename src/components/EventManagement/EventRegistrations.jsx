@@ -1,7 +1,6 @@
+// TODO: This component needs Django API integration - Firebase imports removed
 import React, { useState, useEffect } from 'react';
 import { FaUsers, FaTicketAlt, FaQrcode, FaDownload, FaUpload, FaSearch, FaFilter, FaEye, FaEdit, FaTrash, FaCheckCircle, FaTimes, FaClock } from 'react-icons/fa';
-import { collection, doc, updateDoc, arrayUnion, arrayRemove, getDocs, query, where } from 'firebase/firestore';
-import { db } from '../../firebase';
 import QRCode from 'qrcode';
 
 const EventRegistrations = ({ events, onRefresh }) => {

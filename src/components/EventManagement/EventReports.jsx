@@ -1,8 +1,6 @@
+// TODO: This component needs Django API integration - Firebase imports removed
 import React, { useState, useEffect } from 'react';
 import { FaChartBar, FaDownload, FaFilter, FaCalendarAlt, FaUsers, FaMoneyBillWave, FaStar, FaChartLine, FaChartPie } from 'react-icons/fa';
-import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
-import { db } from '../../firebase';
-
 const EventReports = ({ events }) => {
   const [filters, setFilters] = useState({
     dateRange: 'all',

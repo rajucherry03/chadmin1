@@ -11,14 +11,14 @@ import "./utils/fonts"; // Import font optimizations
 const AdminNavbar = lazy(() => import("./components/ModernNavbar.jsx"));
 const AdminDashboard = lazy(() => import("./components/AdminDashboard.jsx"));
 const Login = lazy(() => import("./components/Login.jsx"))
-const Students = lazy(() => import("./components/StudentManagement/StudentDashboard.jsx"));
+const Students = lazy(() => import("./components/StudentManagement/StudentDashboardDjango.jsx"));
 const StudentManagement = lazy(() => import("./components/StudentManagement.jsx"));
 const StudentRegistration = lazy(() => import("./components/StudentRegistration.jsx"));
 const FormCustomizer = lazy(() => import("./components/FormCustomizer.jsx"));
 const Faculty = lazy(() => import("./components/Faculty-manage.jsx"));
 const FacultyManagement = lazy(() => import("./components/FacultyManagement.jsx"));
 const FacultyViewer = lazy(() => import("./components/FacultyViewer.jsx"));
-const AddFaculty = lazy(() => import("./components/AddFaculty.jsx"));
+const AddFaculty = lazy(() => import("./components/AddFacultyDjango.jsx"));
 const AddCourse = lazy(() => import("./components/AddCourse.jsx"));
 const Courses = lazy(() => import("./components/Courses.jsx"));
 const Relationships = lazy(() => import("./components/Relationships.jsx"));
@@ -56,11 +56,19 @@ const InternshipPlacementManagement = lazy(() => import("./components/Internship
 const ResearchDevelopment = lazy(() => import("./components/RnD/ResearchDevelopment.jsx"));
 const FeedbackManagement = lazy(() => import("./components/FeedbackManagement/FeedbackManagement.jsx"));
 const UserProfile = lazy(() => import("./components/UserProfile.jsx"));
+const StudentFetchDebugger = lazy(() => import("./components/StudentFetchDebugger.jsx"));
+const DjangoBackendTest = lazy(() => import("./components/DjangoBackendTest.jsx"));
+const StudentsEndpointDiagnostic = lazy(() => import("./components/StudentsEndpointDiagnostic.jsx"));
 const ProfileApiTest = lazy(() => import("./components/ProfileApiTest.jsx"));
 const StudentsApiTest = lazy(() => import("./components/StudentsApiTest.jsx"));
 const EnhancedDjangoStudentManagement = lazy(() => import("./components/EnhancedDjangoStudentManagement.jsx"));
-const FirebaseToDjangoMigration = lazy(() => import("./components/FirebaseToDjangoMigration.jsx"));
 const TestStudentCreation = lazy(() => import("./components/TestStudentCreation.jsx"));
+const StudentManagementDashboard = lazy(() => import("./components/StudentManagement/StudentManagementDashboard.jsx"));
+const ApiTestComponent = lazy(() => import("./components/StudentManagement/ApiTestComponent.jsx"));
+const StudentDataTest = lazy(() => import("./components/StudentManagement/StudentDataTest.jsx"));
+const StudentFetchTest = lazy(() => import("./components/StudentFetchTest.jsx"));
+const SuperuserStudentList = lazy(() => import("./components/SuperuserStudentList.jsx"));
+const Std = lazy(() => import("./components/std/Std.jsx"));
 const Logout = lazy(() => import("./components/Logout.jsx"));
 
 // Private Route Wrapper with Token Refresh
@@ -155,11 +163,19 @@ function App() {
                             <Route path="/research-development/*" element={<ResearchDevelopment />} />
                             <Route path="/feedback-management/*" element={<FeedbackManagement />} />
                             <Route path="/profile" element={<UserProfile />} />
+                            <Route path="/debug-students" element={<StudentFetchDebugger />} />
+                            <Route path="/test-backend" element={<DjangoBackendTest />} />
+                            <Route path="/diagnose-students" element={<StudentsEndpointDiagnostic />} />
                             <Route path="/profile-test" element={<ProfileApiTest />} />
                             <Route path="/students-api-test" element={<StudentsApiTest />} />
                             <Route path="/enhanced-student-management" element={<EnhancedDjangoStudentManagement />} />
-                            <Route path="/firebase-to-django-migration" element={<FirebaseToDjangoMigration />} />
                             <Route path="/test-student-creation" element={<TestStudentCreation />} />
+                            <Route path="/student-management-dashboard" element={<StudentManagementDashboard />} />
+                            <Route path="/api-test" element={<ApiTestComponent />} />
+                            <Route path="/student-data-test" element={<StudentDataTest />} />
+                            <Route path="/student-fetch-test" element={<StudentFetchTest />} />
+                            <Route path="/superuser/students" element={<SuperuserStudentList />} />
+                            <Route path="/std" element={<Std />} />
                           </Routes>
                         </div>
                       </div>

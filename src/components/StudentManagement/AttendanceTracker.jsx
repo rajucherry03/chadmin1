@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import studentApiService from '../../services/studentApiService';
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faCalendarCheck, faSave, faDownload, faUndo, faCheckCircle,
@@ -7,9 +8,6 @@ import {
   faUserPlus, faCopy, faArrowsRotate, faCalendarAlt, faCheck,
   faTimes, faSpinner, faChartBar, faChartLine
 } from "@fortawesome/free-solid-svg-icons";
-import { db } from "../../firebase";
-import { doc, updateDoc, writeBatch, addDoc, collection, serverTimestamp } from "firebase/firestore";
-
 const AttendanceTracker = ({ students }) => {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedStudents, setSelectedStudents] = useState([]);

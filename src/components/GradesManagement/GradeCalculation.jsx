@@ -1,3 +1,4 @@
+// TODO: This component needs Django API integration - Firebase imports removed
 import React, { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
@@ -45,7 +46,6 @@ import {
   faPause,
   faStop
 } from '@fortawesome/free-solid-svg-icons';
-import { db, auth } from '../../firebase';
 import { 
   collection, 
   getDocs, 

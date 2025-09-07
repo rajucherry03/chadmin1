@@ -1,5 +1,5 @@
+// TODO: This component needs Django API integration - Firebase imports removed
 import React, { useState, useEffect } from 'react';
-import { db, auth, workerAuth } from '../firebase';
 import { 
   collection, 
   doc, 

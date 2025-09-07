@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import studentApiService from '../../services/studentApiService';
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faKey, faSave, faDownload, faUndo, faCheckCircle,
@@ -9,10 +10,6 @@ import {
   faCalendarAlt, faChartLine, faExclamationCircle, faInfoCircle,
   faCheckDouble, faTimes, faSync, faUserCog, faDatabase, faCloudUpload
 } from "@fortawesome/free-solid-svg-icons";
-import { db } from "../../firebase";
-import { doc, writeBatch, collection, serverTimestamp, getDocs, getDoc, collectionGroup, updateDoc, deleteDoc, query, where, orderBy, limit } from "firebase/firestore";
-import { getAuth, createUserWithEmailAndPassword, fetchSignInMethodsForEmail, deleteUser, updatePassword, sendPasswordResetEmail } from "firebase/auth";
-
 const LoginCredentialsManager = ({ students, onClose }) => {
   const [allStudents, setAllStudents] = useState(Array.isArray(students) ? students : []);
   const [selectedStudents, setSelectedStudents] = useState([]);

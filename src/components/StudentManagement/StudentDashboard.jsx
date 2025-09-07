@@ -20,8 +20,7 @@ import {
   faSearch,
   faFilter
 } from "@fortawesome/free-solid-svg-icons";
-import { db } from "../../firebase";
-import { collection, collectionGroup, getDocs, query, where } from "firebase/firestore";
+import studentApiService from '../../services/studentApiService';
 import StudentStats from "./StudentStats";
 import QuickActions from "./QuickActions";
 import RecentActivities from "./RecentActivities";
@@ -64,6 +63,15 @@ const StudentDashboard = () => {
 
   const fetchDashboardData = async () => {
     setLoading(true);
+    try {
+      const statsData = await studentApiService.getStudentStats();
+      setStats(statsData);
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
     try {
       const querySnapshot = await getDocs(collectionGroup(db, "students"));
       const students = querySnapshot.docs.map(doc => ({

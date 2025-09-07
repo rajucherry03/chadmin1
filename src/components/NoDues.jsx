@@ -1,7 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { db } from "../firebase";
-import { collection, getDocs, doc, setDoc } from "firebase/firestore";
-
+import studentApiService from '../services/studentApiService';
 const NoDuesManagement = () => {
   const [courses, setCourses] = useState([]);
   const [faculty, setFaculty] = useState([]);

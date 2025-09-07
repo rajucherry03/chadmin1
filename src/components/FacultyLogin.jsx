@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { facultyLogin } from "../utils/facultyAuthHelpers";
+// import { facultyLogin } from "../utils/facultyAuthHelpers"; // TODO: Implement faculty API service
 
 const FacultyLogin = () => {
   const [email, setEmail] = useState("");

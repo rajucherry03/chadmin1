@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from "react";
+import studentApiService from '../../services/studentApiService';
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faUserCheck, faSave, faUndo, faUserPlus, faTimes, faSpinner, faSearch, faTrash, faExclamationTriangle } from "@fortawesome/free-solid-svg-icons";
-import { db, auth } from "../../firebase";
-import { doc, updateDoc, writeBatch, addDoc, collection, serverTimestamp, onSnapshot, deleteDoc, getDoc } from "firebase/firestore";
-import { deleteUser } from "firebase/auth";
-import { deleteStudent, bulkDeleteStudents, cleanupStudentData } from "../../utils/firebaseAuthHelpers";
+// import { deleteStudent, bulkDeleteStudents, cleanupStudentData } from "../../utils/firebaseAuthHelpers"; // TODO: Implement student deletion API
 
 const StudentPortal = ({ students = [], filters }) => {
   // Live fetch when Department/Year/Section are provided to ensure data shows from nested path

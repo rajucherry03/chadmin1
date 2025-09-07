@@ -1,4 +1,4 @@
-import { db, storage } from '../../../firebase';
+// TODO: This component needs Django API integration - Firebase imports removed
 import {
   collection,
   doc,

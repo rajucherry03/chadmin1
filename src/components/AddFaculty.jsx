@@ -1,22 +1,8 @@
 import React, { useState } from "react";
-import { db, auth } from "../firebase";
-import { 
-  collection, 
-  query, 
-  where, 
-  getDocs, 
-  doc, 
-  setDoc, 
-  writeBatch 
-} from "firebase/firestore";
+import studentApiService from '../services/studentApiService';
 import * as XLSX from "xlsx";
-import {
-  createFacultyAuthAccount,
-  sendWelcomeEmail,
-  createFacultyProfile,
-  validateFacultyData,
-  FACULTY_ROLES
-} from "../utils/facultyAuthHelpers";
+// TODO: Implement faculty API service
+// import facultyApiService from '../services/facultyApiService';
 
 const AddFaculty = () => {
   // Department options (aligned with AddCourse)

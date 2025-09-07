@@ -1,8 +1,6 @@
+// TODO: This component needs Django API integration - Firebase imports removed
 import React, { useState, useEffect } from 'react';
-import { auth, db } from '../firebase'; // Import Firebase configuration
-import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { collection, getDocs, doc, setDoc, deleteDoc } from 'firebase/firestore';
-
+// Import Firebase configuration
 const CreateUser = () => {
   const [formData, setFormData] = useState({
     email: '',

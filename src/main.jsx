@@ -3,9 +3,23 @@ import ReactDOM from 'react-dom/client';
 import './index.css';
 import App from './App';
 import { performanceMonitor } from './utils/performanceMonitor.jsx';
-import { setupGlobalErrorHandlers } from './utils/errorHandler.js';
+import { handleError, logError } from './utils/djangoErrorHandler.js';
 
 // Initialize global error handlers
+const setupGlobalErrorHandlers = () => {
+  // Global error handler
+  window.addEventListener('error', (event) => {
+    const errorInfo = handleError(event.error, 'Global Error Handler');
+    logError(errorInfo);
+  });
+
+  // Unhandled promise rejection handler
+  window.addEventListener('unhandledrejection', (event) => {
+    const errorInfo = handleError(event.reason, 'Unhandled Promise Rejection');
+    logError(errorInfo);
+  });
+};
+
 setupGlobalErrorHandlers();
 
 // Initialize performance monitoring

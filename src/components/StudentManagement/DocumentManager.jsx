@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import studentApiService from '../../services/studentApiService';
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faFileAlt, faSave, faDownload, faUndo, faCheckCircle,
@@ -7,9 +8,6 @@ import {
   faUserPlus, faCopy, faArrowsRotate, faFileUpload, faCheck,
   faTimes, faSpinner, faFolder, faFile, faFilePdf, faFileImage
 } from "@fortawesome/free-solid-svg-icons";
-import { db } from "../../firebase";
-import { doc, updateDoc, writeBatch, addDoc, collection, serverTimestamp } from "firebase/firestore";
-
 const DocumentManager = ({ students }) => {
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [documents, setDocuments] = useState([]);

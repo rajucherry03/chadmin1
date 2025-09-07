@@ -1,13 +1,11 @@
 import React, { useState, useEffect } from "react";
+import studentApiService from '../../services/studentApiService';
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faRandom, faSave, faDownload, faUndo, faCheckCircle,
   faExclamationTriangle, faEye, faEdit, faTrash, faPlus,
   faCog, faHistory, faQrcode, faPrint, faShare
 } from "@fortawesome/free-solid-svg-icons";
-import { db } from "../../firebase";
-import { doc, updateDoc, writeBatch } from "firebase/firestore";
-
 const RollNumberGenerator = ({ students, onClose }) => {
   const [generationMode, setGenerationMode] = useState("auto");
   const [pattern, setPattern] = useState("YEAR-DEPT-SEQ");

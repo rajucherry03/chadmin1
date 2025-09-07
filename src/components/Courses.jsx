@@ -1,6 +1,5 @@
 import React, { useEffect, useState, useCallback, useMemo } from "react";
-import { collection, getDocs, doc, getDoc, updateDoc, deleteDoc, query, orderBy, limit } from "firebase/firestore";
-import { db } from "../firebase";
+import studentApiService from '../services/studentApiService';
 import { 
   FaSearch, 
   FaFilter, 

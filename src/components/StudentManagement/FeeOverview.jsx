@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import studentApiService from '../../services/studentApiService';
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faMoneyBillWave,
@@ -12,9 +13,6 @@ import {
   faCalendarAlt,
   faFilter
 } from "@fortawesome/free-solid-svg-icons";
-import { db } from "../../firebase";
-import { collection, getDocs, query, where, orderBy, limit } from "firebase/firestore";
-
 const FeeOverview = ({ stats }) => {
   const [selectedPeriod, setSelectedPeriod] = useState("current");
   const [students, setStudents] = useState([]);

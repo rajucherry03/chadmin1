@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { db } from "../firebase";
-import { collection, doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
-
+import studentApiService from '../services/studentApiService';
 const FormCustomizer = () => {
   const [activeTab, setActiveTab] = useState("basic");
   const [customFields, setCustomFields] = useState({});

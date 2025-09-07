@@ -39,24 +39,25 @@ import {
   faCloudUploadAlt
 } from '@fortawesome/free-solid-svg-icons';
 import { Link, Routes, Route } from 'react-router-dom';
-import { db, auth } from '../../firebase';
-import { 
-  collection, 
-  getDocs, 
-  doc, 
-  getDoc, 
-  addDoc, 
-  updateDoc, 
-  deleteDoc, 
-  query, 
-  where, 
-  orderBy, 
-  limit,
-  onSnapshot,
-  serverTimestamp 
-} from 'firebase/firestore';
+// TODO: Implement grades API service
+// import { db, auth } from '../../firebase';
+// import { 
+//   collection, 
+//   getDocs, 
+//   doc, 
+//   getDoc, 
+//   addDoc, 
+//   updateDoc, 
+//   deleteDoc, 
+//   query, 
+//   where, 
+//   orderBy, 
+//   limit,
+//   onSnapshot,
+//   serverTimestamp 
+// } from 'firebase/firestore';
 import { toast } from 'react-toastify';
-import { handleFirestoreError } from '../../utils/errorHandler';
+import { handleError, logError } from '../../utils/djangoErrorHandler';
 
 // Import sub-components
 import ExamDashboard from './ExamDashboard';
@@ -236,7 +237,8 @@ const GradesManagement = () => {
       });
       setCoreEntities(prev => ({ ...prev, students: studentsData }));
     } catch (error) {
-      handleFirestoreError(error, 'fetchStudents');
+      const errorInfo = handleError(error, 'fetchStudents');
+      logError(errorInfo);
       toast.error('Failed to fetch students data');
     }
   };

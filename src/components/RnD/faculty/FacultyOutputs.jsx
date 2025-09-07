@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
+import studentApiService from '../services/studentApiService';
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { db } from "../../../firebase";
 import {
   collection,
   addDoc,

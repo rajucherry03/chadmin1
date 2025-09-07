@@ -1,8 +1,7 @@
 import React, { useState } from "react"; 
+import studentApiService from '../services/studentApiService';
 import * as XLSX from "xlsx";
-import { db } from "../firebase"; // Adjust the path to your Firebase configuration file
-import { doc, collection, addDoc } from "firebase/firestore";
-
+// Adjust the path to your Firebase configuration file
 const AddCourse = () => {
   const [excelData, setExcelData] = useState([]);
   const [uploadSemester, setUploadSemester] = useState("");

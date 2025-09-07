@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import studentApiService from '../services/studentApiService';
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faPlus,
@@ -15,9 +16,6 @@ import {
   faAward,
   faCalculator
 } from "@fortawesome/free-solid-svg-icons";
-import { db } from "../../firebase";
-import { collection, getDocs, doc, updateDoc, addDoc, deleteDoc, query, where, collectionGroup } from "firebase/firestore";
-
 const GradesManagement = () => {
   const [students, setStudents] = useState([]);
   const [grades, setGrades] = useState([]);

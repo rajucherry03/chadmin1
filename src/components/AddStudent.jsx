@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { db } from "../firebase";
-import { collection, doc, setDoc, query, where, getDocs, addDoc, serverTimestamp } from "firebase/firestore";
+import studentApiService from '../services/studentApiService';
 import * as XLSX from "xlsx";
 
 const AddStudent = () => {

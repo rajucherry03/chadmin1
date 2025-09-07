@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { db, auth } from "../firebase"; // Firebase instance
-import { collection, getDocs, doc, setDoc } from "firebase/firestore";
-import { onAuthStateChanged } from "firebase/auth";
-
+import studentApiService from '../services/studentApiService';
+// Firebase instance
 const UserList = () => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);

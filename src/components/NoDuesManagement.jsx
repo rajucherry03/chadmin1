@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { doc, getDoc, collection, getDocs, query, orderBy, limit } from "firebase/firestore";
-import { db } from "../firebase"; // Your Firebase configuration
+import studentApiService from '../services/studentApiService';
+// Your Firebase configuration
 
 const NoDuesPage = () => {
   const [academicYear, setAcademicYear] = useState("");

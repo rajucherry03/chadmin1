@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import studentApiService from '../services/studentApiService';
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faComments,
@@ -25,7 +26,6 @@ import {
   faUserClock,
   faUserGraduate
 } from "@fortawesome/free-solid-svg-icons";
-import { db } from "../../firebase";
 import {
   collection,
   getDocs,

@@ -1,12 +1,10 @@
+// TODO: This component needs Django API integration - Firebase imports removed
 import React, { useState, useEffect } from 'react';
 import { 
   FaCalendarAlt, FaSearch, FaFilter, FaSort, FaEye, FaEdit, FaTrash, 
   FaUsers, FaMapMarkerAlt, FaClock, FaCheckCircle, FaTimes, FaExclamationTriangle,
   FaDownload, FaUpload, FaQrcode, FaPrint, FaShare, FaBookmark, FaStar
 } from 'react-icons/fa';
-import { collection, query, where, getDocs, orderBy, limit, deleteDoc, doc, updateDoc } from 'firebase/firestore';
-import { db } from '../../firebase';
-
 const EventList = ({ events, onRefresh, onEdit, onView }) => {
   const [filteredEvents, setFilteredEvents] = useState([]);
   const [filters, setFilters] = useState({

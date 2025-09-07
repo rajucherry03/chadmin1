@@ -1,8 +1,6 @@
 import React, { useEffect, useState } from "react";
+import studentApiService from '../services/studentApiService';
 import { useParams } from "react-router-dom";
-import { db } from "../firebase";
-import { doc, getDoc } from "firebase/firestore";
-
 const FacultyViewer = () => {
   const { deptKey, memberId } = useParams();
   const [loading, setLoading] = useState(true);

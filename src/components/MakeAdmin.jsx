@@ -1,7 +1,5 @@
 import React, { useState } from "react";
-import { doc, setDoc, getDoc } from "firebase/firestore";
-import { db } from "../firebase";
-
+import studentApiService from '../services/studentApiService';
 const MakeAdmin = () => {
   const [email, setEmail] = useState("");
   const [error, setError] = useState(null);

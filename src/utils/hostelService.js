@@ -1,4 +1,4 @@
-import { addItem, updateItem, runBatch } from "./firestoreHooks";
+// import { addItem, updateItem, runBatch } from "./firestoreHooks"; // TODO: Implement hostel API service
 
 // Basic validation helpers
 const required = (obj, fields) => {

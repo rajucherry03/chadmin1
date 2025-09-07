@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { db } from "../firebase";
-import { collection, doc, getDocs, addDoc, getDoc, setDoc, writeBatch } from "firebase/firestore";
+import studentApiService from '../services/studentApiService';
 import {
   FaCalendarAlt,
   FaPlus,

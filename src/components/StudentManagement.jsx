@@ -9,9 +9,7 @@ import {
   faUsers, faBell, faDatabase, faShieldAlt, faPalette, faTimes,
   faChevronDown, faChevronUp, faBolt, faArrowRight, faComments
 } from "@fortawesome/free-solid-svg-icons";
-import { db } from "../firebase";
-import { collection, collectionGroup, doc, getDocs, updateDoc, deleteDoc, query, where, orderBy, limit, onSnapshot } from "firebase/firestore";
-import { getAuth } from "firebase/auth";
+import studentApiService from '../services/studentApiService';
 import EnhancedBulkImport from "./EnhancedBulkImport";
 
 // Import new components
@@ -56,60 +54,29 @@ const StudentManagement = () => {
   const [editingStudent, setEditingStudent] = useState(null);
   const [editForm, setEditForm] = useState({});
 
-  // Fetch students
-  // If department, year and section are chosen, stream from nested path: students/{department}/{year-section}
-  // Otherwise, fall back to root "students" for a general overview
+  // Fetch students from Django API
   useEffect(() => {
-    setLoading(true);
-    let unsub = null;
-    try {
-      if (filterDepartment && filterYear && filterSection) {
-        const yearSection = `${filterYear}-${filterSection}`;
-        unsub = onSnapshot(
-          collection(db, "students", filterDepartment, yearSection),
-          (snapshot) => {
-            const studentsData = [];
-            snapshot.forEach((docSnap) => {
-              studentsData.push({ id: docSnap.id, _dept: filterDepartment, _year: filterYear, _section: filterSection, ...docSnap.data() });
-            });
-            setStudents(studentsData);
-            setLoading(false);
-            setError("");
-          },
-          (err) => {
-            console.error("Error fetching students:", err);
-            setError("Failed to load students. Please try again.");
-            setLoading(false);
-          }
-        );
-      } else {
-        // Root overview
-        unsub = onSnapshot(
-          collection(db, "students"),
-          (snapshot) => {
-            const studentsData = [];
-            snapshot.forEach((docSnap) => {
-              studentsData.push({ id: docSnap.id, ...docSnap.data() });
-            });
-            setStudents(studentsData);
-            setLoading(false);
-            setError("");
-          },
-          (err) => {
-            console.error("Error fetching students:", err);
-            setError("Failed to load students. Please try again.");
-            setLoading(false);
-          }
-        );
+    const loadStudents = async () => {
+      setLoading(true);
+      try {
+        const params = {};
+        if (filterDepartment) params.department = filterDepartment;
+        if (filterYear) params.year = filterYear;
+        if (filterSection) params.section = filterSection;
+        
+        const studentsData = await studentApiService.getStudents(params);
+        setStudents(Array.isArray(studentsData) ? studentsData : []);
+        setError("");
+      } catch (err) {
+        console.error("Error fetching students:", err);
+        setError("Failed to load students. Please try again.");
+        setStudents([]);
+      } finally {
+        setLoading(false);
       }
-    } catch (e) {
-      console.error(e);
-      setError("Failed to load students. Please try again.");
-      setLoading(false);
-    }
-    return () => {
-      if (unsub) unsub();
     };
+
+    loadStudents();
   }, [filterDepartment, filterYear, filterSection]);
 
   // Calculate statistics
@@ -117,21 +84,22 @@ const StudentManagement = () => {
     totalStudents: students.length,
     activeStudents: students.filter(s => (s.status || '').toString().toLowerCase() === 'active').length,
     newAdmissions: students.filter(s => {
-      const admissionDate = s.admissionDate || s.createdAt;
+      const admissionDate = s.admission_date || s.created_at;
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       return admissionDate && new Date(admissionDate) > thirtyDaysAgo;
     }).length,
-    pendingFees: students.filter(s => (s.totalFee || 0) > (s.paidFee || 0)).length,
-    hostelStudents: students.filter(s => s.hostelStatus === 'allocated').length,
-    transportStudents: students.filter(s => s.transportStatus === 'allocated').length
+    pendingFees: students.filter(s => (s.total_fee || 0) > (s.paid_fee || 0)).length,
+    hostelStudents: students.filter(s => s.hostel_status === 'allocated').length,
+    transportStudents: students.filter(s => s.transport_status === 'allocated').length
   };
 
   // Filter students
   const filteredStudents = students.filter(student => {
     const matchesSearch = student.name?.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
-                         student.rollNo?.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
-                         student.email?.toLowerCase().includes(debouncedSearch.toLowerCase());
+                         student.roll_number?.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+                         student.email?.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+                         `${student.first_name || ''} ${student.last_name || ''}`.toLowerCase().includes(debouncedSearch.toLowerCase());
     const matchesYear = !filterYear || student.year === filterYear;
     const matchesDepartment = !filterDepartment || student.department === filterDepartment;
     
@@ -143,8 +111,8 @@ const StudentManagement = () => {
     const dir = sortDir === "asc" ? 1 : -1;
     const getVal = (s) => {
       switch (sortBy) {
-        case "name": return (s.name || `${s.firstName || ''} ${s.lastName || ''}`).toLowerCase();
-        case "rollNo": return (s.rollNo || '').toString().toLowerCase();
+        case "name": return (s.name || `${s.first_name || ''} ${s.last_name || ''}`).toLowerCase();
+        case "rollNo": return (s.roll_number || '').toString().toLowerCase();
         case "year": return (s.year || '').toString().toLowerCase();
         case "department": return (s.department || '').toLowerCase();
         case "status": return (s.status || '').toLowerCase();
@@ -180,12 +148,13 @@ const StudentManagement = () => {
   const openEditModal = (student) => {
     setEditingStudent(student);
     setEditForm({
-      name: student.name || `${student.firstName || ''} ${student.lastName || ''}`.trim(),
-      rollNo: student.rollNo || '',
+      first_name: student.first_name || '',
+      last_name: student.last_name || '',
+      roll_number: student.roll_number || '',
       email: student.email || '',
-      department: student._dept || student.department || filterDepartment || '',
-      year: student._year || student.year || filterYear || '',
-      section: student._section || student.section || filterSection || '',
+      department: student.department || filterDepartment || '',
+      year: student.year || filterYear || '',
+      section: student.section || filterSection || '',
       status: student.status || 'active'
     });
     setShowEditModal(true);
@@ -197,39 +166,35 @@ const StudentManagement = () => {
       return;
     }
     try {
-      const yearSection = `${editForm.year}-${editForm.section}`;
-      const ref = doc(db, 'students', editForm.department, yearSection, editingStudent.id);
-      await updateDoc(ref, {
-        name: editForm.name,
-        rollNo: editForm.rollNo,
-        email: editForm.email,
-        department: editForm.department,
-        year: editForm.year,
-        section: editForm.section,
-        status: editForm.status
-      });
+      await studentApiService.updateStudent(editingStudent.id, editForm);
       setShowEditModal(false);
+      // Reload students
+      const params = {};
+      if (filterDepartment) params.department = filterDepartment;
+      if (filterYear) params.year = filterYear;
+      if (filterSection) params.section = filterSection;
+      const studentsData = await studentApiService.getStudents(params);
+      setStudents(Array.isArray(studentsData) ? studentsData : []);
     } catch (e) {
       console.error('Failed to update student', e);
-      alert('Failed to update student');
+      alert('Failed to update student: ' + e.message);
     }
   };
 
   const removeStudent = async (student) => {
+    if (!window.confirm('Delete this student?')) return;
     try {
-      const dept = student._dept || filterDepartment;
-      const year = student._year || filterYear;
-      const section = student._section || filterSection;
-      if (!dept || !year || !section) {
-        alert('Cannot determine student location. Select filters first.');
-        return;
-      }
-      if (!window.confirm('Delete this student?')) return;
-      const ref = doc(db, 'students', dept, `${year}-${section}`, student.id);
-      await deleteDoc(ref);
+      await studentApiService.deleteStudent(student.id);
+      // Reload students
+      const params = {};
+      if (filterDepartment) params.department = filterDepartment;
+      if (filterYear) params.year = filterYear;
+      if (filterSection) params.section = filterSection;
+      const studentsData = await studentApiService.getStudents(params);
+      setStudents(Array.isArray(studentsData) ? studentsData : []);
     } catch (e) {
       console.error('Failed to delete student', e);
-      alert('Failed to delete student');
+      alert('Failed to delete student: ' + e.message);
     }
   };
 
@@ -541,13 +506,13 @@ const StudentManagement = () => {
                                 </div>
                                 <div className="ml-3">
                                   <div className="text-sm font-medium text-gray-900 dark:text-white truncate max-w-[140px]">
-                                    {student.name || `${student.firstName || ''} ${student.lastName || ''}`.trim()}
+                                    {student.name || `${student.first_name || ''} ${student.last_name || ''}`.trim()}
                                   </div>
                                   <div className="text-xs text-gray-500 dark:text-gray-400 truncate max-w-[140px]">{student.email}</div>
                                 </div>
                               </div>
                             </td>
-                            <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 dark:text-white">{student.rollNo}</td>
+                            <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 dark:text-white">{student.roll_number}</td>
                             <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 dark:text-white truncate max-w-[100px]">{student.department}</td>
                             <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900 dark:text-white">{student.year}</td>
                             <td className="px-3 py-2 whitespace-nowrap">
@@ -594,13 +559,13 @@ const StudentManagement = () => {
                                 </div>
                                 <div className="ml-1.5">
                                   <div className="text-xs font-medium text-gray-900 truncate max-w-[80px]">
-                                    {student.name || `${student.firstName || ''} ${student.lastName || ''}`.trim()}
+                                    {student.name || `${student.first_name || ''} ${student.last_name || ''}`.trim()}
                                   </div>
                                   <div className="text-xs text-gray-500 truncate max-w-[80px]">{student.email}</div>
                                 </div>
                               </div>
                             </td>
-                            <td className="px-1.5 py-1.5 whitespace-nowrap text-xs text-gray-900">{student.rollNo}</td>
+                            <td className="px-1.5 py-1.5 whitespace-nowrap text-xs text-gray-900">{student.roll_number}</td>
                             <td className="px-1.5 py-1.5 whitespace-nowrap text-xs text-gray-900 truncate max-w-[60px]">{student.department}</td>
                             <td className="px-1.5 py-1.5 whitespace-nowrap">
                               <span className={`inline-flex px-1 py-0.5 text-xs font-semibold rounded-full ${
@@ -633,7 +598,7 @@ const StudentManagement = () => {
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between mb-1">
                               <p className="font-medium text-gray-900 text-xs truncate">
-                                {student.name || `${student.firstName || ''} ${student.lastName || ''}`.trim()}
+                                {student.name || `${student.first_name || ''} ${student.last_name || ''}`.trim()}
                               </p>
                               <span className={`ml-1 inline-flex px-1 py-0.5 text-xs font-semibold rounded-full flex-shrink-0 ${
                                 student.status === 'active' ? 'bg-green-100 text-green-800' :
@@ -644,7 +609,7 @@ const StudentManagement = () => {
                               </span>
                             </div>
                             <p className="text-xs text-gray-600 mb-1">
-                              <span className="font-medium">Roll No:</span> {student.rollNo} • 
+                              <span className="font-medium">Roll No:</span> {student.roll_number} • 
                               <span className="font-medium ml-1">Dept:</span> {student.department} • 
                               <span className="font-medium ml-1">Year:</span> {student.year}
                             </p>
@@ -1011,14 +976,20 @@ const StudentManagement = () => {
                 </button>
               </div>
               <div className="space-y-3">
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
-                  <input value={editForm.name || ''} onChange={(e)=>setEditForm(v=>({...v,name:e.target.value}))} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"/>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">First Name</label>
+                    <input value={editForm.first_name || ''} onChange={(e)=>setEditForm(v=>({...v,first_name:e.target.value}))} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"/>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Last Name</label>
+                    <input value={editForm.last_name || ''} onChange={(e)=>setEditForm(v=>({...v,last_name:e.target.value}))} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"/>
+                  </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Roll No</label>
-                    <input value={editForm.rollNo || ''} onChange={(e)=>setEditForm(v=>({...v,rollNo:e.target.value}))} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"/>
+                    <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Roll Number</label>
+                    <input value={editForm.roll_number || ''} onChange={(e)=>setEditForm(v=>({...v,roll_number:e.target.value}))} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"/>
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Email</label>

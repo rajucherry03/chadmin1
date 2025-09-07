@@ -1,15 +1,5 @@
 import React, { useState, useEffect } from "react";
-import {
-  collection,
-  addDoc,
-  getDocs,
-  updateDoc,
-  doc,
-  deleteDoc,
-  query,
-  orderBy,
-} from "firebase/firestore";
-import { db } from "../firebase";
+import studentApiService from '../services/studentApiService';
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   FaEdit, 
@@ -58,18 +48,16 @@ function ManageStudents() {
     enrollmentDate: new Date().toISOString().split('T')[0],
   });
 
-  // Fetch students from Firebase
+  // Fetch students from Django API
   useEffect(() => {
     const fetchStudents = async () => {
       try {
         setLoading(true);
-        const q = query(collection(db, "students"), orderBy("name"));
-        const querySnapshot = await getDocs(q);
-        setStudents(
-          querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
-        );
+        const studentsData = await studentApiService.getStudents();
+        setStudents(Array.isArray(studentsData) ? studentsData : []);
       } catch (error) {
         console.error("Error fetching students:", error);
+        setStudents([]);
       } finally {
         setLoading(false);
       }
@@ -97,23 +85,16 @@ function ManageStudents() {
     try {
       if (editingId) {
         // Update student
-        const studentRef = doc(db, "students", editingId);
-        await updateDoc(studentRef, studentData);
+        await studentApiService.updateStudent(editingId, studentData);
         setEditingId(null);
       } else {
         // Add new student
-        await addDoc(collection(db, "students"), {
-          ...studentData,
-          createdAt: new Date().toISOString(),
-        });
+        await studentApiService.createStudent(studentData);
       }
       
       // Refresh the students list
-      const q = query(collection(db, "students"), orderBy("name"));
-      const querySnapshot = await getDocs(q);
-      setStudents(
-        querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
-      );
+      const studentsData = await studentApiService.getStudents();
+      setStudents(Array.isArray(studentsData) ? studentsData : []);
       
       // Reset form
       resetForm();
@@ -148,7 +129,7 @@ function ManageStudents() {
   // Delete Student
   const handleDelete = async (id) => {
     try {
-      await deleteDoc(doc(db, "students", id));
+      await studentApiService.deleteStudent(id);
       setStudents(students.filter((student) => student.id !== id));
       setDeleteConfirm(null);
     } catch (error) {

@@ -1,7 +1,6 @@
+// TODO: This component needs Django API integration - Firebase imports removed
 import React, { useState, useEffect } from 'react';
-import { db } from '../firebase'; // Import Firebase configuration
-import { collection, getDocs, addDoc, doc, setDoc } from 'firebase/firestore';
-
+// Import Firebase configuration
 const Attendance = ({ loggedInFaculty }) => {
   const [students, setStudents] = useState([]);
   const [selectedCourse, setSelectedCourse] = useState('');

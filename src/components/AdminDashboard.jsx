@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { db } from "../firebase";
-import { collection, getDocs } from "firebase/firestore";
+import studentApiService from '../services/studentApiService';
 import { motion } from "framer-motion";
 import { 
   FaUsers, 
@@ -23,46 +22,19 @@ const Dashboard = () => {
       setIsLoading(true);
 
       try {
-        const years = ["II", "III", "IV"];
-        const sections = ["A", "B", "C"];
-        const studentsPerSection = {};
-        const coursesPerYear = {};
-        let totalFaculty = 0;
-
-        // Initialize data structures
-        years.forEach((year) => {
-          studentsPerSection[year] = {};
-          coursesPerYear[year] = 0;
-          sections.forEach((section) => {
-            studentsPerSection[year][section] = 0;
-          });
-        });
-
-        // Fetch data for students and courses
-        for (const year of years) {
-          for (const section of sections) {
-            // Fetch students
-            const studentsPath = `/students/${year}/${section}`;
-            const studentsSnapshot = await getDocs(collection(db, studentsPath));
-            studentsPerSection[year][section] = studentsSnapshot.size;
-
-            // Fetch courses
-            const coursesPath = `/courses/Computer Science & Engineering (Data Science)/years/${year}/sections/${section}/courseDetails`;
-            const coursesSnapshot = await getDocs(collection(db, coursesPath));
-            coursesPerYear[year] += coursesSnapshot.size;
-          }
-        }
-
-        // Fetch faculty data
-        const facultySnapshot = await getDocs(collection(db, "faculty"));
-        totalFaculty = facultySnapshot.size;
-
-        // Update state
-        setStudentsData(studentsPerSection);
-        setCoursesData(coursesPerYear);
-        setFacultyCount(totalFaculty);
+        // Fetch student statistics from Django API
+        const statsData = await studentApiService.getStudentStats();
+        
+        // Update state with Django data
+        setStudentsData(statsData.by_year || {});
+        setCoursesData({}); // TODO: Implement courses API
+        setFacultyCount(0); // TODO: Implement faculty API
       } catch (error) {
         console.error("Error fetching dashboard data:", error);
+        // Set default values on error
+        setStudentsData({});
+        setCoursesData({});
+        setFacultyCount(0);
       } finally {
         setIsLoading(false);
       }

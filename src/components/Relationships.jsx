@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { collection, getDocs, doc, writeBatch, deleteField } from "firebase/firestore";
-import { db } from "../firebase";
+import studentApiService from '../services/studentApiService';
 import {
   studentsCollectionPath,
   studentDocPath,

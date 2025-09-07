@@ -1,6 +1,5 @@
+// TODO: This component needs Django API integration - Firebase imports removed
 import React, { useState, useEffect } from 'react';
-import { db } from '../firebase';
-import { collection, getDocs, getDoc, doc, updateDoc, deleteDoc, writeBatch, setDoc } from 'firebase/firestore';
 import { FaCalendarAlt, FaSearch, FaEdit, FaTrash, FaSave, FaTimes, FaClock, FaMapMarkerAlt, FaUserTie, FaBook } from 'react-icons/fa';
 import { coursesCollectionPath, courseDocPath, coursesCollectionPathYearSem, courseDocPathYearSem, timetableCollectionPathLegacy, timetableCollectionPathYearSem, possibleSemesterKeysForYear } from '../utils/pathBuilders';
 

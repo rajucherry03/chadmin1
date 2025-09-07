@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import studentApiService from '../services/studentApiService';
 import { useNavigate } from "react-router-dom";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import "./StudentManagement.css";
@@ -13,9 +14,6 @@ import {
   faRandom, faQrcode, faPrint, faShare, faHistory, faChartLine,
   faUserFriends, faBookOpen, faCalendarCheck, faClipboardCheck
 } from "@fortawesome/free-solid-svg-icons";
-import { db } from "../firebase";
-import { collection, doc, getDocs, updateDoc, deleteDoc, query, where, orderBy, limit, onSnapshot, addDoc } from "firebase/firestore";
-import { getAuth, createUserWithEmailAndPassword } from "firebase/auth";
 import EnhancedBulkImport from "./EnhancedBulkImport";
 
 // Import new components

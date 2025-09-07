@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import studentApiService from '../../services/studentApiService';
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faIdCard,
@@ -33,7 +34,6 @@ import {
   faBars,
   faCog as faSettings
 } from "@fortawesome/free-solid-svg-icons";
-import { db, storage } from "../../firebase";
 import { 
   collection, 
   collectionGroup, 
@@ -44,7 +44,6 @@ import {
   deleteDoc,
   doc
 } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import QRCode from 'qrcode';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';

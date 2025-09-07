@@ -1,8 +1,6 @@
+// TODO: This component needs Django API integration - Firebase imports removed
 import React, { useState, useEffect } from 'react';
 import { FaCog, FaBell, FaEnvelope, FaSms, FaSave, FaCheckCircle, FaTimes } from 'react-icons/fa';
-import { collection, doc, updateDoc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../../firebase';
-
 const EventSettings = () => {
   const [settings, setSettings] = useState({
     notifications: {

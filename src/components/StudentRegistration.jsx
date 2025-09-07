@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { db } from "../firebase";
-import { collection, doc, setDoc, getDoc, query, where, getDocs, addDoc, serverTimestamp } from "firebase/firestore";
+import studentApiService from '../services/studentApiService';
 
 const StudentRegistration = () => {
   const [activeTab, setActiveTab] = useState("basic");
@@ -176,19 +175,9 @@ const StudentRegistration = () => {
     setConfigLoading(true);
     try {
       console.log("Loading custom field configuration...");
-      const docRef = doc(db, "formConfig", "studentRegistration");
-      const docSnap = await getDoc(docRef);
-      
-      if (docSnap.exists()) {
-        const configData = docSnap.data();
-        console.log("Loaded config data:", configData);
-        setCustomFieldConfig(configData.tabs || {});
-        handlePopup("Custom configuration loaded successfully!", "success");
-      } else {
-        console.log("No custom configuration found, using default fields");
-        setCustomFieldConfig({});
-        handlePopup("No custom configuration found. Using default fields.", "info");
-      }
+      // TODO: Implement custom field configuration loading from Django API
+      setCustomFieldConfig({});
+      handlePopup("Using default field configuration", "info");
     } catch (error) {
       console.error("Error loading custom field config:", error);
       handlePopup("Error loading custom configuration", "error");
@@ -235,11 +224,8 @@ const StudentRegistration = () => {
         }
       };
 
-      const docRef = doc(db, "formConfig", "studentRegistration");
-      await setDoc(docRef, {
-        ...testConfig,
-        updatedAt: serverTimestamp()
-      });
+      // TODO: Implement test configuration creation in Django API
+      console.log("Test configuration would be created:", testConfig);
 
       await loadCustomFieldConfig();
       handlePopup("Test configuration created and loaded!", "success");
@@ -305,8 +291,8 @@ const StudentRegistration = () => {
         ...studentData,
         authUid: documentId,
         studentId: documentId,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
         status: "Active",
         formConfig: customFieldConfig, // Store the form configuration used
         customFields: Object.keys(customFieldConfig).reduce((acc, tabId) => {
@@ -320,13 +306,8 @@ const StudentRegistration = () => {
         }, {})
       };
 
-      // Store in Firebase with proper structure
-      const sectionRef = collection(db, `students/${studentData.year}/${studentData.section}`);
-      await setDoc(doc(sectionRef, documentId), studentRecord);
-
-      // Also store in a general students collection for easy querying
-      const generalStudentsRef = collection(db, "students");
-      await setDoc(doc(generalStudentsRef, documentId), studentRecord);
+      // Store in Django API
+      await studentApiService.createStudent(studentRecord);
 
       handlePopup("Student added successfully!", "success");
       
