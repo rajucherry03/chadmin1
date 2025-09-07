@@ -7,6 +7,8 @@ export const signInWithEmailAndPassword = notAvailable('signInWithEmailAndPasswo
 export const signOut = notAvailable('signOut');
 export const onAuthStateChanged = notAvailable('onAuthStateChanged');
 export const createUserWithEmailAndPassword = notAvailable('createUserWithEmailAndPassword');
+export const fetchSignInMethodsForEmail = notAvailable('fetchSignInMethodsForEmail');
+export const sendPasswordResetEmail = notAvailable('sendPasswordResetEmail');
 export const updateProfile = notAvailable('updateProfile');
 export default {};
 

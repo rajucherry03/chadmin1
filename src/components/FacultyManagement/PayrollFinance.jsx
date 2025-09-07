@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import studentApiService from '../services/studentApiService';
+import studentApiService from '../../services/studentApiService';
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faMoneyBillWave,

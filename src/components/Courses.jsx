@@ -3,7 +3,7 @@ import studentApiService from '../services/studentApiService';
 import { 
   FaSearch, 
   FaFilter, 
-  FaRefresh, 
+  FaSyncAlt, 
   FaEye, 
   FaEdit, 
   FaTrash, 
@@ -267,7 +267,7 @@ function Courses() {
                 onClick={fetchCoursesAndInstructors}
                 className="w-full flex items-center justify-center space-x-2 bg-green-600 dark:bg-green-500 text-white px-4 py-3 rounded-lg hover:bg-green-700 dark:hover:bg-green-600 transition-colors"
               >
-                <FaRefresh className="text-sm" />
+                <FaSyncAlt className="text-sm" />
                 <span>Refresh</span>
               </button>
             </div>

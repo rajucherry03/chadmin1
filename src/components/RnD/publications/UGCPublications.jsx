@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import studentApiService from '../services/studentApiService';
+import studentApiService from '../../../services/studentApiService';
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   collection,
